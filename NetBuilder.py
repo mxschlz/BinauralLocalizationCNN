@@ -357,3 +357,28 @@ class NetBuilder:
         else:
             return self.input
 
+
+if __name__ == '__main__':
+    import os
+    import numpy as np
+    from CNN_util import get_feature_dict, build_tfrecords_iterator
+    import glob
+
+    netweights_path = "/home/max/Projects/BinauralLocalizationCNN/netweights/"
+    first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
+    config_fname = 'config_array.npy'
+    config_array = np.load(os.path.join(first_net_path, config_fname), allow_pickle=True)
+    stim_tfrec_pattern = os.path.join("/home/max/Projects/BinauralLocalizationCNN/Data/msl/cnn/locaaccu_babble_v.tfrecords")
+    stim_files = glob.glob(stim_tfrec_pattern)
+    stim_feature = get_feature_dict(stim_files[0])
+    ds_params = {}
+    stim_dset = build_tfrecords_iterator(stim_tfrec_pattern, stim_feature, **ds_params)
+    batch_size = tf.constant(16, dtype=tf.int64)
+    stim_dset = stim_dset.shuffle(buffer_size=16). \
+        batch(batch_size=batch_size, drop_remainder=True)
+    stim_iter = stim_dset.make_initializable_iterator()
+    data_samp = stim_iter.get_next()
+    new_sig_nonlin = tf.pow(data_samp['train/image'], 0.3)
+    net_params = {"cpu_only": True}
+    net = NetBuilder(**net_params)
+    out = net.build(config_array=config_array, subbands_batch=new_sig_nonlin)
