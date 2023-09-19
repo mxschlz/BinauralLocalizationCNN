@@ -187,4 +187,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name,
 
 
 if __name__ == '__main__':
-    pass
+    netweights_path = "/home/max/Projects/BinauralLocalizationCNN/netweights/"
+    first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
+    config_fname = 'config_array.npy'
+    config_array = np.load(os.path.join(first_net_path, config_fname), allow_pickle=True)
+
+
