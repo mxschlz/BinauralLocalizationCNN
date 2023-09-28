@@ -3,7 +3,7 @@ from run_CNN import run_CNN
 
 
 # LocaAccu tfrecs
-stim_tfrecs = os.path.join('Data', 'msl', 'cnn', "locaaccu_noise_v.tfrecords")
+stim_tfrecs = os.path.join('tfrecords', 'msl', 'cnn', "locaaccu_noise_v.tfrecords")
 # trained net parameters
 for net in range(1, 11):
     trainedNet = os.path.join('netweights', f'net{net}')
