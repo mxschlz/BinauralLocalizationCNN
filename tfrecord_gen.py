@@ -1,8 +1,6 @@
 import random
 import os
 import tensorflow as tf
-import numpy as np
-from copy import deepcopy
 
 
 # Type conversion functions
