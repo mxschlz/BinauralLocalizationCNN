@@ -256,7 +256,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
 if __name__ == "__main__":
     import os
 
-    d_folder = os.path.join('Data', 'generated')
+    d_folder = os.path.join('tfrecords', 'generated')
     file_pattern = 'test*.tfrecords'
     files = glob.glob(os.path.join(d_folder, file_pattern))
     rec_feature = get_feature_dict(files[0])
