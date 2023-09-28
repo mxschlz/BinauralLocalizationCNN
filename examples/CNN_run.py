@@ -8,6 +8,9 @@ import os
 import glob
 import tensorflow as tf
 import numpy as np
+import time
+import json
+import pdb
 
 # custom memory saving gradient
 import memory_saving_gradients
@@ -27,11 +30,11 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = os.path.join("/Data/msl/cnn/locaaccu_babble_v.tfrecords")
+stim_tfrec_pattern = os.path.join(os.getcwd(), "tfrecords/msl/cnn/locaaccu_babble_v.tfrecords")
 stim_files = glob.glob(stim_tfrec_pattern)
 
 # load config array from trained network
-trainedNets_path = os.path.join(os.getcwd(), '../netweights')
+trainedNets_path = os.path.join(os.getcwd(), "netweights")
 names = os.listdir(trainedNets_path)
 net_dirs = [n for n in names if os.path.isdir(os.path.join(trainedNets_path, n))]
 curr_net = os.path.join(trainedNets_path, net_dirs[0])
@@ -43,7 +46,7 @@ ds_params = {}
 net_params = {'cpu_only': True, 'regularizer': None}
 cost_params = {}
 run_params = {'learning_rate': 1e-3,
-              'testing': False,
+              'testing': True,
               'model_version': ['100000']}
 
 # build tfrecords dataset
@@ -54,7 +57,7 @@ stim_dset = build_tfrecords_iterator(stim_tfrec_pattern, stim_feature, **ds_para
 # currently the data in the tfrecords is already down-sampled, so background mixing probably makes no sense here
 
 # from the stim_dset, create a batched data iterator
-batch_size = tf.constant(16, dtype=tf.int64)
+batch_size = tf.constant(16, dtype=tf.int64)  # batch size
 stim_dset = stim_dset.shuffle(buffer_size=16).\
     batch(batch_size=batch_size, drop_remainder=True)
 stim_iter = stim_dset.make_initializable_iterator()
@@ -99,14 +102,16 @@ if net_params['regularizer'] is not None:
 # parameters for model evaluation
 # network maximum-likelihood prediction
 cond_dist = tf.nn.softmax(net_out)
-net_pred = tf.argmax(cond_dist, 1)
 top_k = tf.nn.top_k(net_out, 5)
+sorted_predictions = np.argsort(top_k[1], axis=1)[::-1]
+net_pred = tf.argmax(cond_dist, 1)  # returns index of maximum value in the network output
+
 # correct predictions
-correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
+correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))  # compares if two tensors are equal
 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
 # launch the model
-is_testing = run_params['testing']
+testing = run_params['testing']
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 with tf.control_dependencies(update_ops):
     update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
@@ -128,41 +133,119 @@ eval_keys = list(data_label.keys())
 eval_vars = list(data_label.values())
 header = ['model_pred'] + eval_keys
 # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
-csv_path = os.path.join('../Result', 'test.csv')
+csv_path = os.path.join(os.getcwd(), 'Result/test.csv')
 csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
 csv_writer = csv.writer(csv_handle)
 csv_writer.writerow(header)
 
-# only consider testing
 model_version = run_params['model_version']
-for mv_num in model_version:
-    sess.run(stim_iter.initializer)
-    # load model
-    print("Starting model version: ", mv_num)
-    saver = tf.train.Saver(max_to_keep=None)
-    saver.restore(sess, os.path.join(curr_net, "model.ckpt-" + str(mv_num)))
+if testing:
+    for mv_num in model_version:
+        sess.run(stim_iter.initializer)
+        # load model
+        print("Starting model version: ", mv_num)
+        saver = tf.train.Saver(max_to_keep=None)
+        saver.restore(sess, os.path.join(curr_net, "model.ckpt-" + str(mv_num)))  # restore network weights
 
-    step = 0
+        step = 0
 
-    while True:
-        # running individual batches
-        try:
-            pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
-            # prepare result to write into .csv
-            csv_rows = list(zip(pd, *e_vars))
-            # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
-            csv_writer.writerows(csv_rows)
-        except tf.errors.ResourceExhaustedError:
-            print("Out of memory error")
-        except tf.errors.OutOfRangeError:
-            print('Dataset finished')
+        while True:
+            # running individual batches
+            try:
+                pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
+                max_prob_idx = None
+                # prepare result to write into .csv
+                csv_rows = list(zip(pd, *e_vars))
+                # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
+                csv_writer.writerows(csv_rows)
+            except tf.errors.ResourceExhaustedError:
+                print("Out of memory error")
+                break
+            except tf.errors.OutOfRangeError:
+                print('Dataset finished')
+                break
 
-        finally:
-            # close the csv file
+            finally:
+                # close the csv file
+                pass
+
             csv_handle.close()
 
-# cleanup
-sess.close()
-tf.reset_default_graph()
+    # cleanup
+    sess.close()
+    tf.reset_default_graph()
 
+if not testing:
+    newpath = trainedNets_path + "_retrained"
+    num_files = len(curr_net)
+    display_step = 25
+    sess.run(stim_iter.initializer)
+    saver = tf.train.Saver(max_to_keep=None)
+    learning_curve = []
+    errors_count = 0
+    try:
+        step = 1
+        sess.graph.finalize()
+        while True:
+            # sess.run([optimizer,check_op])
+            try:
+                if step == 1:
+                    if not num_files == 1:
+                        # latest_addition = max(files, key=os.path.getctime)
+                        file_list = []
+                        for elem in curr_net:
+                            if (elem.split("/")[-1]).split(".")[0] == 'model':
+                                file_list.append(elem)
+                        latest_addition = max(file_list, key=os.path.getctime)
+                        latest_addition_name = latest_addition.split(".")[-2]
+                        saver.restore(sess, newpath + "/model." + latest_addition_name)
+                        step = int(latest_addition_name.split("-")[1])
+                    else:
+                        sess.run(update_grads)
+                else:
+                    sess.run(update_grads)
+            #                    sess.run(update_grads)
+            except tf.errors.InvalidArgumentError as e:
+                print(e.message)
+                errors_count += 1
+                continue
+            if step % display_step == 0:
+                # Calculate batch loss and accuracy
+                loss, acc, az = sess.run([cost, accuracy, data_label[0]['train/azim']])
+                # print("Batch Labels: ",az)
+                print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
+                      "{:.6f}".format(loss) + ", Training Accuracy= " + \
+                      "{:.5f}".format(acc))
+            if step % 5000 == 0:
+                print("Checkpointing Model...")
+                retry_count = 0
+                while True:
+                    try:
+                        saver.save(sess, newpath + '/model.ckpt', global_step=step, write_meta_graph=False)
+                        break
+                    except ValueError as e:
+                        if retry_count > 36:
+                            print("Maximum wait time reached(6H). Terminating Program.")
+                            raise e from None
+                        print("Checkpointing failed. Retrying in 10 minutes...")
+                        time.sleep(600)
+                        retry_count += 1
+                learning_curve.append([int(step * batch_size), float(acc)])
+                print("Checkpoint Complete")
 
+            # Just for testing the model/call_model
+            if step == 300000:
+                print("Break!")
+                break
+            step += 1
+    except tf.errors.OutOfRangeError:
+        print("Out of Range Error. Optimization Finished")
+    except tf.errors.DataLossError as e:
+        print("Corrupted file found!!")
+        pdb.set_trace()
+    finally:
+        print(errors_count)
+        print("Training stopped.")
+
+    with open(newpath + '/curve_no_resample_w_cutoff_vary_loc.json', 'w') as f:
+        json.dump(learning_curve, f)
