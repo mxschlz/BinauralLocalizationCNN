@@ -1430,7 +1430,7 @@ def plot_2AFC_vs_ITD_by_mod_freq(afc_results_array,keys,carrier_list =None,
             data_idx = [i for i,x in enumerate(afc_results) if 
                         x[0][2] == (key,key)]
             assert len(data_idx) == 1 ,\
-                    ("Data not formatted as expected! " 
+                    ("tfrecords not formatted as expected! " 
                     "Multiple sublists with same modulation frequency!")
             #calculates 2AFC results
             ITDs,mean,bottom_error,top_error = \

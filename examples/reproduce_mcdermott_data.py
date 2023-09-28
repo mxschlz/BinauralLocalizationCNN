@@ -25,7 +25,7 @@ for sig in sigs:
 stims_bi = process_stims(stims_bi)
 
 # write tfrecord
-rec_path = os.path.join('Data', 'mcdermott')
+rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'broadband_noise_azimuth.tfrecords')
 create_tfrecord(stims_bi, rec_file)
 # check record file
@@ -45,7 +45,7 @@ for sig in sigs:
 stims_bi = process_stims(stims_bi)
 
 # write tfrecord
-rec_path = os.path.join('Data', 'mcdermott')
+rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'broadband_noise_elevation.tfrecords')
 create_tfrecord(stims_bi, rec_file)
 # check record file
@@ -117,7 +117,7 @@ for ild in ILD_bias:
 # preprocessing and write
 stims_high_final = process_stims(stims_high_final)
 # write tfrecord
-rec_path = os.path.join('Data', 'mcdermott')
+rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_high_ITDILD.tfrecords')
 create_tfrecord(stims_high_final, rec_file)
 # check record file
@@ -155,7 +155,7 @@ for ild in ILD_bias:
 # process and write
 stims_low_final = process_stims(stims_low_final)
 # write tfrecord
-rec_path = os.path.join('../Data', 'mcdermott')
+rec_path = os.path.join('../tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_low_ITDILD.tfrecords')
 create_tfrecord(stims_low_final, rec_file)
 # check record file
@@ -197,7 +197,7 @@ for cf in center_freq:
 # preprocessing
 sigs_bp_bi = process_stims(sigs_bp_bi)
 # write tfrecord
-rec_path = os.path.join('../Data', 'mcdermott')
+rec_path = os.path.join('../tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_bandwidth.tfrecords')
 create_tfrecord(sigs_bp_bi, rec_file)
 # check record file
@@ -214,7 +214,7 @@ final = render_stims(orig_stim=noise, pos_azim=azis, pos_elev=eles, hrtf_obj=sti
 # preprocessing
 final_preproc = process_stims(final)
 # write tfrecord
-rec_path = "/home/max/Projects/BinauralLocalizationCNN/Data/mcdermott"
+rec_path = "/tfrecords/mcdermott"
 rec_file = os.path.join(rec_path, 'SL_unmodified_ears.tfrecords')
 create_tfrecord(final_preproc, rec_file)
 # check record file

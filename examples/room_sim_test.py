@@ -5,7 +5,7 @@ from scipy.io import wavfile
 import numpy as np
 
 
-data_path = os.path.join('..', 'Data', 'origin')
+data_path = os.path.join('..', 'tfrecords', 'origin')
 wav_ori = 'test.wav'
 wf = os.path.join(data_path, wav_ori)
 sf, sig_ori = wavfile.read(wf)
