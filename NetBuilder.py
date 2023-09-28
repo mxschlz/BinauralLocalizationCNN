@@ -368,7 +368,7 @@ if __name__ == '__main__':
     first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
     config_fname = 'config_array.npy'
     config_array = np.load(os.path.join(first_net_path, config_fname), allow_pickle=True)
-    stim_tfrec_pattern = os.path.join("/home/max/Projects/BinauralLocalizationCNN/Data/msl/cnn/locaaccu_babble_v.tfrecords")
+    stim_tfrec_pattern = os.path.join(os.getcwd(), "tfrecords/msl/cnn/locaaccu_babble_v.tfrecords")
     stim_files = glob.glob(stim_tfrec_pattern)
     stim_feature = get_feature_dict(stim_files[0])
     ds_params = {}
