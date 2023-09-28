@@ -104,7 +104,7 @@ def _simulate_f1_humandata(data_excel, ns_bin=100):
     Simulates data for Figure 1 based on the excel data sheet in Francl 2022 paper.
 
     Args:
-        data_excel (DataFrame): Data from the excel.
+        data_excel (DataFrame): tfrecords from the excel.
         ns_bin (int): Number of data points to simulate in each position.
 
     Returns:
