@@ -5,8 +5,6 @@ import numpy as np
 from stim_util import resample, utl, loc_to_CNNpos
 import slab
 # import pyroomacoustics as pra
-
-from scipy.io import wavfile
 from collections import Sized
 from copy import deepcopy
 import warnings
@@ -180,7 +178,7 @@ def simulate_from_hrtf(sig, sig_sr, HRTFs, target_sr=48000, **kwargs):
     return sig_dicts
 
 
-def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sample=None):
+def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sample=None, **kwargs):
     """
     Renders stimuli with spatial audio effects.
 
@@ -193,7 +191,7 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sampl
         n_reps (int, optional): The number of repetitions for each stimulus in the simulated experiment.
                                 Default is 5.
         n_sample (int, optional): The number of original stimuli to sample when rendering a list of sounds.
-                                  Default is None.
+                                  Default is 1.
 
     Returns:
         list: A list of dictionaries containing the rendered stimuli and their corresponding labels.
@@ -213,12 +211,14 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sampl
 
     if isinstance(orig_stim, slab.Sound):
         # If the original stimulus is a single sound
-        stims_rendered.extend(augment_from_array(orig_stim.data, sample_rate=orig_stim.samplerate, hrtfs=hrtf_sets))
+        stims_rendered.extend(augment_from_array(orig_stim.data, sample_rate=orig_stim.samplerate, hrtfs=hrtf_sets, **kwargs))
     elif isinstance(orig_stim, list):
         # If the original stimulus is a list of sounds, randomly select a subset for rendering
+        if not n_sample:
+            n_sample = orig_stim.__len__()
         randsamp = random.sample(orig_stim, n_sample)
         for stim in randsamp:
-            stims_rendered.extend(augment_from_array(stim.data, sample_rate=stim.samplerate, hrtfs=hrtf_sets))
+            stims_rendered.extend(augment_from_array(stim.data, sample_rate=stim.samplerate, hrtfs=hrtf_sets, **kwargs))
 
     sig_rate = stims_rendered[0]['label']['sampling_rate']
 
@@ -239,7 +239,6 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sampl
             stims_final.append({'sig': sig.data, 'label': label_dict})
 
     return stims_final
-
 
 
 if __name__ == "__main__":
