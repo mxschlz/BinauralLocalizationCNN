@@ -20,7 +20,7 @@ stim = slab.Sound.pinknoise(2.1, samplerate=samplerate)
 
 
 # load sofa files from CIPIC as ear mold simulation
-# sofa_root = os.path.join("Data", "cipic_hrtfs")  # sofa files directory
+# sofa_root = os.path.join("tfrecords", "cipic_hrtfs")  # sofa files directory
 # cipic_hrtfs = [slab.HRTF(data=os.path.join(sofa_root, x)) for x in os.listdir(sofa_root)]  # hrtfs from CIPIC dataset
 
 # render the sound
@@ -32,7 +32,7 @@ stims_final = render_stims(orig_stim=stim, pos_azim=pos_azim, pos_elev=pos_elev,
 # preprocessing
 stims_final = process_stims(stims_final)
 # write tfrecord
-rec_path = os.path.join("Data/msl/cnn")
+rec_path = os.path.join("tfrecords/msl/cnn")
 rec_file = os.path.join(rec_path, 'locaaccu_noise_v.tfrecords')
 create_tfrecord(stims_final, rec_file)
 # check record file
@@ -51,10 +51,8 @@ stims_final = render_stims(orig_stim=babble, pos_azim=pos_azim, pos_elev=pos_ele
 # preprocessing
 stims_final = process_stims(stims_final)
 # write tfrecord
-rec_path = os.path.join("Data/msl/cnn")
+rec_path = os.path.join("tfrecords/msl/cnn")
 rec_file = os.path.join(rec_path, 'locaaccu_babble_v.tfrecords')
 create_tfrecord(stims_final, rec_file)
 # check record file
 status = check_record(rec_file)
-
-# DATA GENERATION FOR NUMJUDGE PARADIGM
