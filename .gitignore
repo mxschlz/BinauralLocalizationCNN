@@ -160,6 +160,9 @@ cython_debug/
 #.idea/
 /Binaural Localization Net Weights.zip
 /Result/
-/Data/
+/tfrecords/
 /netweights/
 /plots/
+/MSL/numjudge_rendered_stims/
+/cipic_hrtfs/
+/netweights_retrained/
