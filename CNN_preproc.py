@@ -16,8 +16,6 @@ import tensorflow as tf
 import numpy as np
 from pycochleagram import cochleagram as cgm
 import scipy.signal as signallib
-from pycochleagram import utils as utl
-import os
 
 
 # default settings
