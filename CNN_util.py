@@ -253,6 +253,23 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
     return cost, labels_batch_cost_sphere
 
 
+def get_dataset_partitions_tf(ds, train_split=0.8, test_split=0.2, shuffle=True,
+                              shuffle_size=10000):
+    assert (train_split + test_split) == 1
+
+    if shuffle:
+        # Specify seed to always have the same split distribution between runs
+        ds = ds.shuffle(shuffle_size, seed=12)
+
+    ds_size = ds.__sizeof__()
+    train_size = int(train_split * ds_size)
+
+    train_ds = ds.take(train_size)
+    test_ds = ds.skip(train_size)
+
+    return train_ds, test_ds
+
+
 if __name__ == "__main__":
     import os
 
