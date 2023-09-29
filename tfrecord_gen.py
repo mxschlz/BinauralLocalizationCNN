@@ -31,7 +31,8 @@ LBS_MAPPING = {
     'sampling_rate': ['train/sampling_rate', _int64_feature],
     'cnn_idx': ['train/cnn_idx', _int64_feature],
     'center_freq': ['train/center_freq', _int64_feature],
-    'bandwidth': ['train/bandwidth', _float_feature]
+    'bandwidth': ['train/bandwidth', _float_feature],
+    'n_sounds': ['train/n_sounds', _int64_feature]
 }
 
 
