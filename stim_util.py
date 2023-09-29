@@ -91,8 +91,16 @@ def zero_padding(stim, goal_duration=2.1):
         raise ValueError("stimulus must be instance of slab.Sound!")
     else:
         curr_length_ns = stim.n_samples
-        missing_length_ns = int((goal_duration * stim.samplerate - curr_length_ns))
+        missing_length_ns = int((goal_duration * stim.samplerate - curr_length_ns) / 2)
         padding = slab.Sound.silence(missing_length_ns, stim.samplerate, stim.n_channels)
-    return slab.Sound.sequence(stim, padding)
+    return slab.Sound.sequence(padding, stim, padding)
 
 
+if __name__ == "__main__":
+    sound = slab.Sound.whitenoise(1.0)
+    curr_length_ns = sound.n_samples
+    goal_duration = 2.1
+    goal_length_ns = goal_duration * sound.samplerate
+    missing_length_ns = int((goal_duration * sound.samplerate - curr_length_ns) / 2)
+    padding = slab.Sound.silence(missing_length_ns, sound.samplerate, sound.n_channels)
+    padded = slab.Sound.sequence(padding, sound, padding)
