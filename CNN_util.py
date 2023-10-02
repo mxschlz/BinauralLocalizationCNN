@@ -6,6 +6,7 @@ import collections
 from google.protobuf.json_format import MessageToJson
 import json
 import glob
+import numpy as np
 
 # TODO: remapping of azim/elev data; keep original, but seems azim in [0, 360] and elev in [0, 60]
 
@@ -215,7 +216,7 @@ def get_feature_dict(tf_file, tf_opts=DEFAULT_COMP_OPT, is_bkgd=False):
 
 
 def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
-                  precedence_effect=False, tone_version=False, **kwargs):
+                  precedence_effect=False, tone_version=False, multi_source_localization=False):
     """
     cost function for the CNN
     :param data_sample: data returned from dataset iterator
@@ -234,6 +235,8 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
         labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample['train/carrier_freq']))
     elif precedence_effect:
         labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample['train/start_sample']))
+    elif multi_source_localization:
+        labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample["train/n_sounds"]))
     else:
         if not tone_version:
             # pos to label conversion, only for original data
@@ -253,19 +256,17 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
     return cost, labels_batch_cost_sphere
 
 
-def get_dataset_partitions_tf(ds, train_split=0.8, test_split=0.2, shuffle=True,
-                              shuffle_size=10000):
+def get_dataset_partitions(ds, train_split=0.8, test_split=0.2, shuffle=True):
     assert (train_split + test_split) == 1
 
     if shuffle:
-        # Specify seed to always have the same split distribution between runs
-        ds = ds.shuffle(shuffle_size, seed=12)
+        np.random.shuffle(ds)  # shuffles in-place
 
-    ds_size = ds.__sizeof__()
+    ds_size = len(ds)
     train_size = int(train_split * ds_size)
 
-    train_ds = ds.take(train_size)
-    test_ds = ds.skip(train_size)
+    train_ds = ds[:train_size]
+    test_ds = ds[train_size:]
 
     return train_ds, test_ds
 
