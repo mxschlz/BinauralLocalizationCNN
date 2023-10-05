@@ -31,9 +31,9 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "tfrecords/msl/locaaccu_noise_v.tfrecords"
+stim_tfrec_pattern = "tfrecords/mcdermott/broadband_noise.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
-save_name = os.path.join('Result', 'locaaccu_noise_v')
+save_name = os.path.join('Result', 'test')
 
 # load config array from trained network
 trainedNets_path = "netweights"
@@ -46,7 +46,7 @@ config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 # default parameters
 DEFAULT_DATA_PARAM = {}
 DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None}
-DEFAULT_COST_PARAM = {}
+DEFAULT_COST_PARAM = {"multi_source_localization": False}
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
                      'batch_size': 16,
                      'testing': True,
@@ -129,8 +129,8 @@ init_op = tf.group(tf.global_variables_initializer(),
 # TODO: parallelization options decide how much memory is needed. 0 is too many.
 #  for testing use 1, but should try to see how many is optimal
 config = tf.ConfigProto(allow_soft_placement=True,
-                        inter_op_parallelism_threads=1,
-                        intra_op_parallelism_threads=1)
+                        inter_op_parallelism_threads=0,
+                        intra_op_parallelism_threads=0)
 sess = tf.Session(config=config)
 sess.run(init_op)
 
@@ -148,7 +148,7 @@ for mv_num in model_version:
         # load model
         print("Starting model version: ", mv_num)
         saver = tf.train.Saver(max_to_keep=None)
-        saver.restore(sess, os.path.join(curr_net, "model.ckpt-" + str(mv_num)))
+        saver.restore(sess, os.path.join(curr_net, "model.ckpt-" + str(mv_num)))  # restore weights and biases
 
         header = ['model_pred'] + eval_keys
         # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
@@ -180,7 +180,7 @@ for mv_num in model_version:
 
     if not testing:
         newpath = trainedNets_path + "_retrained"
-        num_files = len(stim_files)
+        num_files = 1
         display_step = 25
         sess.run(stim_iter.initializer)
         saver = tf.train.Saver(max_to_keep=None)
@@ -250,7 +250,7 @@ for mv_num in model_version:
             print(errors_count)
             print("Training stopped.")
 
-        with open(newpath + '/curve_no_resample_w_cutoff_vary_loc.json', 'w') as f:
+        with open(newpath + '/learning_curve_retrained.json', 'w') as f:
             json.dump(learning_curve, f)
 
     # cleanup
