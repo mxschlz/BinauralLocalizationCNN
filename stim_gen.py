@@ -178,7 +178,7 @@ def simulate_from_hrtf(sig, sig_sr, HRTFs, target_sr=48000, **kwargs):
     return sig_dicts
 
 
-def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sample=None, **kwargs):
+def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=5, n_sample=None, msl=False, **kwargs):
     """
     Renders stimuli with spatial audio effects.
 
