@@ -15,6 +15,7 @@ DATA_MAPPING = {
     'azim': ['train/azim', tf.int64],
     'elev': ['train/elev', tf.int64],
     'dist': ['train/dist', tf.float32],
+    "n_sounds": ["train/n_sounds", tf.int32],
     'hrtf_idx':  ['train/hrtf_idx', tf.int64],
     'sampling_rate':  ['train/sampling_rate', tf.int64],
     'ITD':  ['train/ITD', tf.int64],
@@ -236,7 +237,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
     elif precedence_effect:
         labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample['train/start_sample']))
     elif multi_source_localization:
-        labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample["train/n_sounds"]))
+        labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample['train/n_sounds']))
     else:
         if not tone_version:
             # pos to label conversion, only for original data
@@ -252,7 +253,6 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
 
     cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
                           (logits=net_out, labels=labels_batch_cost_sphere))
-
     return cost, labels_batch_cost_sphere
 
 
@@ -271,13 +271,68 @@ def get_dataset_partitions(ds, train_split=0.8, test_split=0.2, shuffle=True):
     return train_ds, test_ds
 
 
+def freeze_session(session, keep_var_names=None, output_names=None, clear_devices=True):
+    """
+    Freezes the state of a session into a pruned computation graph.
+
+    Creates a new computation graph where variable nodes are replaced by
+    constants taking their current value in the session. The new graph will be
+    pruned so subgraphs that are not necessary to compute the requested
+    outputs are removed.
+    @param session The TensorFlow session to be frozen.
+    @param keep_var_names A list of variable names that should not be frozen,
+                          or None to freeze all the variables in the graph.
+    @param output_names Names of the relevant graph outputs.
+    @param clear_devices Remove the device directives from the graph for better portability.
+    @return The frozen graph definition.
+    """
+    graph = session.graph
+    with graph.as_default():
+        freeze_var_names = list(set(v.op.name for v in tf.global_variables()).difference(keep_var_names or []))
+        output_names = output_names or []
+        output_names += [v.op.name for v in tf.global_variables()]
+        input_graph_def = graph.as_graph_def()
+        if clear_devices:
+            for node in input_graph_def.node:
+                node.device = ""
+        frozen_graph = tf.graph_util.convert_variables_to_constants(
+            session, input_graph_def, output_names, freeze_var_names)
+        return frozen_graph
+
+
 if __name__ == "__main__":
     import os
+    import NetBuilder
 
-    d_folder = os.path.join('tfrecords', 'generated')
-    file_pattern = 'test*.tfrecords'
-    files = glob.glob(os.path.join(d_folder, file_pattern))
+    file_pattern = 'tfrecords/msl/numjudge_full_set_talkers_clear_train.tfrecords'
+    files = glob.glob(file_pattern)
     rec_feature = get_feature_dict(files[0])
     # build the dataset iterator
     dataset = build_tfrecords_iterator(file_pattern, rec_feature)
+    # from the stim_dset, create a batched data iterator
+    batch_size = 16
+    batch_size_tf = tf.constant(batch_size, dtype=tf.int64)
+    stim_dset = dataset.shuffle(buffer_size=batch_size). \
+        batch(batch_size=batch_size_tf, drop_remainder=True)
+    stim_iter = stim_dset.make_initializable_iterator()
+    data_samp = stim_iter.get_next()
+
+    trainedNets_path = "netweights"
+    names = os.listdir(trainedNets_path)
+    net_dirs = sorted([n for n in names if os.path.isdir(os.path.join(trainedNets_path, n))])
+    curr_net = os.path.join(trainedNets_path, net_dirs[0])
+    net_name = os.path.split(curr_net)[-1]
+    config_fname = 'config_array.npy'
+    config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
+
+    # network input
+    # the signal is power-transformed
+    # coch_sig = data_samp['train/image']
+    new_sig_nonlin = tf.pow(data_samp['train/image'], 0.3)
+
+    # build the neural network
+    net = NetBuilder.NetBuilder(cpu_only=True)
+    net_out = net.build(config_array, new_sig_nonlin, regularizer=None)
+    cost, labels = cost_function(data_samp, net_out, multi_source_localization=True)
+
 
