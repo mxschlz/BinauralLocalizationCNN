@@ -18,12 +18,12 @@ class NetBuilder:
         self.layer_out = 0
         self.layer_out1 = 0
         self.layer_out2 = 0
+        self.fc_out = 0
         self.cpu_only = cpu_only
 
     def build(self, config_array, subbands_batch, training_state=True,
               dropout_training_state=True, filter_dtype=tf.float32, padding='VALID',
-              n_classes_localization=504, n_classes_recognition=780,
-              branched=False, regularizer=None, **kwargs):
+              n_classes_localization=504, branched=False, regularizer=None, **kwargs):
 
         if branched:
             warnings.warn("'branched' is not implemented. setting it to False")
@@ -148,212 +148,6 @@ class NetBuilder:
                             self.layer_out += 1
                             print(element)
                             print(self.input)
-
-                        elif element[0] == 'branch':
-                            self.input1 = self.input
-                            self.input2 = self.input
-                            self.layer1 = self.layer
-                            self.layer2 = self.layer
-                            print(self.input1)
-                            print(self.input2)
-                            print(self.layer1)
-                            print(self.layer2)
-                            branched_point = True
-                            start_point = lst.index(element)
-                            print(start_point)
-                            start_point += 1
-                            break
-
-            if branched_point is True:
-                with tf.device(gpu1):
-                    for element in lst[start_point:]:
-                        if element[0] == 'conv':
-                            size1 = self.input1.get_shape()
-                            kernel_size = [element[1][0], element[1][1], size1[3], element[1][2]]
-                            stride_size = [1, element[2][0], element[2][1], 1]
-                            filter_height = kernel_size[0]
-                            in_height = size1[1]
-                            weight1 = tf.get_variable("wc1_{}".format(self.layer1), kernel_size, filter_dtype)
-                            bias1 = tf.get_variable("wb1_{}".format(self.layer1), element[1][2], filter_dtype)
-                            if in_height % stride_size[1] == 0:
-                                pad_along_height = max(filter_height - stride_size[1], 0)
-                            else:
-                                pad_along_height = max(filter_height - (in_height % stride_size[1]), 0)
-                            pad_top = pad_along_height // 2
-                            pad_bottom = pad_along_height - pad_top
-                            if pad_along_height == 0 or padding == 'SAME':
-                                weight1 = tf.nn.conv2d(self.input1, weight1,
-                                                       strides=stride_size, padding=padding)
-                            else:
-                                paddings = tf.constant([[0, 0], [pad_top, pad_bottom], [0, 0], [0, 0]])
-                                input_padded = tf.pad(self.input1, paddings)
-                                weight1 = tf.nn.conv2d(input_padded, weight1,
-                                                       strides=stride_size, padding=padding)
-
-                            self.input1 = tf.nn.bias_add(weight1, bias1)
-                            self.layer1 += 1
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'bn':
-                            self.input1 = tf.layers.batch_normalization(self.input1, training=training_state)
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'relu':
-                            self.input1 = tf.nn.relu(self.input1)
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'pool':
-                            self.input1 = tf.nn.max_pool(self.input1, ksize=[1, element[1][0], element[1][1], 1],
-                                                         strides=[1, element[1][0], element[1][1], 1],
-                                                         padding=padding)
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'fc':
-                            dim1 = self.input1.get_shape()
-                            wd1_1 = tf.get_variable("wc1_fc_{}".format(self.layer_fc1),
-                                                    [dim1[3]*dim1[1]*dim1[2], element[1]],
-                                                    filter_dtype)
-                            dense_bias1_1 = tf.get_variable("wb1_fc_{}".format(self.layer_fc1),
-                                                            element[1], filter_dtype)
-                            pool_flat1 = tf.reshape(self.input1, [-1, wd1_1.get_shape().as_list()[0]])
-                            fc1_1 = tf.add(tf.matmul(pool_flat1, wd1_1), dense_bias1_1)
-                            self.input1 = tf.cast(fc1_1, tf.float32)
-
-                            self.layer_fc1 += 1
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'fc_bn':
-                            self.input1 = tf.cast(tf.layers.batch_normalization(
-                                self.input1, training=training_state), filter_dtype)
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'fc_relu':
-                            self.input1 = tf.nn.relu(self.input1)
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'dropout':
-                            self.input1 = tf.layers.dropout(self.input1, training=dropout_training_state)
-                            print(element)
-                            print(self.input1)
-
-                        elif element[0] == 'out':
-                            dim_1_1 = self.input1.get_shape()
-                            w_out1 = tf.get_variable("wc1_out_{}".format(self.layer_out1),
-                                                     [dim_1_1[1], n_classes_localization], filter_dtype)
-                            b_out1 = tf.get_variable("wb1_out_{}".format(self.layer_out1),
-                                                     [n_classes_localization], filter_dtype)
-                            out1 = tf.add(tf.matmul(self.input1, w_out1), b_out1)
-                            self.input1 = tf.cast(out1, tf.float32)
-
-                            self.layer_out1 += 1
-                            print(element)
-                            print(self.input1)
-
-                with tf.device(gpu2):
-                    for element in lst[start_point:]:
-                        if element[0] == 'conv':
-                            size2 = self.input2.get_shape()
-                            kernel_size = [element[1][0], element[1][1], size2[3], element[1][2]]
-                            stride_size = [1, element[2][0], element[2][1], 1]
-                            filter_height = kernel_size[0]
-                            in_height = size2[1]
-                            weight2 = tf.get_variable("wc2_{}".format(self.layer2),
-                                                      kernel_size, filter_dtype)
-                            bias2 = tf.get_variable("wb2_{}".format(self.layer2),
-                                                    element[1][2], filter_dtype)
-                            if in_height % stride_size[1] == 0:
-                                pad_along_height = max(filter_height - stride_size[1], 0)
-                            else:
-                                pad_along_height = max(filter_height - (in_height % stride_size[1]), 0)
-                            pad_top = pad_along_height // 2
-                            pad_bottom = pad_along_height - pad_top
-                            if pad_along_height == 0 or padding == 'SAME':
-                                weight2 = tf.nn.conv2d(self.input2, weight2,
-                                                       strides=stride_size, padding=padding)
-                            else:
-                                paddings = tf.constant([[0, 0], [pad_top, pad_bottom], [0, 0], [0, 0]])
-                                input_padded = tf.pad(self.input2, paddings)
-                                weight2 = tf.nn.conv2d(self.input2, weight2,
-                                                       strides=stride_size, padding=padding)
-
-                            self.input2 = tf.nn.bias_add(weight2, bias2)
-                            self.layer2 += 1
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'bn':
-                            self.input2 = tf.layers.batch_normalization(self.input2, training=training_state)
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'relu':
-                            self.input2 = tf.nn.relu(self.input2)
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'pool':
-                            self.input2 = tf.nn.max_pool(self.input2,
-                                                         ksize=[1, element[1][0], element[1][1], 1],
-                                                         strides=[1, element[1][0], element[1][1], 1],
-                                                         padding=padding)
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'fc':
-                            dim2 = self.input2.get_shape()
-                            wd1_2 = tf.get_variable("wc2_fc_{}".format(self.layer_fc2),
-                                                    [dim2[3] * dim2[1] * dim2[2], element[1]],
-                                                    filter_dtype)
-                            dense_bias1_2 = tf.get_variable("wb2_fc_{}".format(self.layer_fc2),
-                                                            element[1], filter_dtype)
-                            pool_flat2 = tf.reshape(self.input2, [-1, wd1_2.get_shape().as_list()[0]])
-                            fc1_2 = tf.add(tf.matmul(pool_flat2, wd1_2), dense_bias1_2)
-                            self.input2 = tf.cast(fc1_2, tf.float32)
-
-                            self.layer_fc2 += 1
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'fc_bn':
-                            self.input2 = tf.cast(tf.layers.batch_normalization(
-                                self.input2, training=training_state), filter_dtype)
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'fc_relu':
-                            self.input2 = tf.nn.relu(self.input2)
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'dropout':
-                            self.input2 = tf.layers.dropout(self.input2, training=dropout_training_state)
-                            print(element)
-                            print(self.input2)
-
-                        elif element[0] == 'out':
-                            dim_1_2 = self.input2.get_shape()
-                            w_out2 = tf.get_variable("wc2_out_{}".format(self.layer_out2),
-                                                     [dim_1_2[1], n_classes_recognition], filter_dtype)
-                            b_out2 = tf.get_variable("wb2_out_{}".format(self.layer_out2),
-                                                     [n_classes_recognition], filter_dtype)
-                            out2 = tf.add(tf.matmul(self.input2, w_out2), b_out2)
-                            self.input2 = tf.cast(out2, tf.float32)
-
-                            self.layer_out2 += 1
-                            print(element)
-                            print(self.input2)
-
-                gpu2 = second_branch[1][0]
-
-        if branched:
-            return self.input1, self.input2
         else:
             return self.input
 
@@ -368,7 +162,7 @@ if __name__ == '__main__':
     first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
     config_fname = 'config_array.npy'
     config_array = np.load(os.path.join(first_net_path, config_fname), allow_pickle=True)
-    stim_tfrec_pattern = os.path.join(os.getcwd(), "tfrecords/msl/cnn/locaaccu_babble_v.tfrecords")
+    stim_tfrec_pattern = os.path.join(os.getcwd(), "tfrecords/msl/numjudge_full_set_talkers_clear_train.tfrecords")
     stim_files = glob.glob(stim_tfrec_pattern)
     stim_feature = get_feature_dict(stim_files[0])
     ds_params = {}
