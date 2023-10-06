@@ -1,5 +1,4 @@
 import collections
-import csv
 
 from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function, freeze_session
 from NetBuilder import NetBuilder
@@ -33,7 +32,6 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 # data paths
 stim_tfrec_pattern = "tfrecords/msl/*train.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
-save_name = os.path.join('Result', 'test')
 
 # load config array from trained network
 trainedNets_path = "netweights"
@@ -45,8 +43,7 @@ config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 
 # default parameters
 DEFAULT_DATA_PARAM = {}
-DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5,
-                     "keep_var_names": ["wc_fc_0", "wc_out_0"]}
+DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {"multi_source_localization": True}  # adjust cost to MSL
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
                      'batch_size': 16,
@@ -143,29 +140,45 @@ eval_vars = list(data_label.values())
 # only consider testing
 model_version = run_params['model_version']
 testing = run_params["testing"]
-keep_weights = net_params["keep_var_names"]
+keep_var_names = None
+
+
+# search for dense layer weights or posterior
+def unique_list(list1, list2):
+    return [x for x in list1 if x not in list2]
+
+
+all_vars = list(set(v.op.name for v in tf.global_variables()).difference([]))
+retrain_vars = list()
+for weight in all_vars:
+    if weight.find("fc") != -1:
+        retrain_vars.append(weight)
+    if weight.find("out") != -1:
+        retrain_vars.append(weight)
+
+freeze_vars = unique_list(all_vars, retrain_vars)
 
 if testing:
     print("Please set testing param to False in order to retrain the CNN!")
 if not testing:
-    model_weights = glob.glob(curr_net + "/*data*")[0]
+    model_weights = os.path.join(curr_net, "model.ckpt-" + model_version[0])
     newpath = trainedNets_path + "_MSL/" + net_name
     num_files = 1
     display_step = 25
     sess.run(stim_iter.initializer)
-    saver = tf.train.Saver(max_to_keep=None)
+    saver = tf.train.Saver(max_to_keep=None, var_list=freeze_vars)
     learning_curve = []
     errors_count = 0
     try:
         step = 1
-        # sess.graph.finalize()
+        sess.graph.finalize()
         # sess.run(partially_frozen)
         while True:
             # sess.run([optimizer,check_op])
             try:
                 if step == 1:
-                    saver.restore(sess, model_weights)
-                    freeze_session(sess, keep_var_names=keep_weights)  # freeze all layers prior to dense layer
+                    saver.restore(sess, model_weights)  # TODO: here it breaks atm
+                    freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                     sess.run(update_grads)
                 else:
                     sess.run(update_grads)
@@ -186,7 +199,8 @@ if not testing:
                 retry_count = 0
                 while True:
                     try:
-                        saver.save(sess, newpath + f'/model_{model_version}_retrained_MSL.ckpt', global_step=step, write_meta_graph=False)
+                        saver.save(sess, newpath + f'/model_{model_version}_retrained_MSL.ckpt', global_step=step,
+                                   write_meta_graph=False)
                         break
                     except ValueError as e:
                         if retry_count > 36:
