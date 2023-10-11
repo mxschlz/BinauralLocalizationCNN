@@ -46,9 +46,12 @@ DEFAULT_DATA_PARAM = {}
 DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {"multi_source_localization": True}  # adjust cost to MSL
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
-                     'batch_size': 16,
+                     'batch_size': 7,
                      'testing': False,
-                     'model_version': ['100000']}
+                     'model_version': ['100000'],
+                     "display_step": 1,
+                     "total_steps": 10000,
+                     "checkpoint_step": 1}
 
 # additional params
 ds_params = {}
@@ -140,7 +143,6 @@ eval_vars = list(data_label.values())
 # only consider testing
 model_version = run_params['model_version']
 testing = run_params["testing"]
-keep_var_names = None
 
 
 # search for dense layer weights or posterior
@@ -148,7 +150,10 @@ def unique_list(list1, list2):
     return [x for x in list1 if x not in list2]
 
 
+# all variables
 all_vars = list(set(v.op.name for v in tf.global_variables()).difference([]))
+
+# retrain variables
 retrain_vars = list()
 for weight in all_vars:
     if weight.find("fc") != -1:
@@ -156,28 +161,33 @@ for weight in all_vars:
     if weight.find("out") != -1:
         retrain_vars.append(weight)
 
+# get freeze variables
 freeze_vars = unique_list(all_vars, retrain_vars)
+
+# get variable list for restoring in saver
+var_list = tf.contrib.framework.get_variables_to_restore(exclude=retrain_vars)
+
 
 if testing:
     print("Please set testing param to False in order to retrain the CNN!")
 if not testing:
     model_weights = os.path.join(curr_net, "model.ckpt-" + model_version[0])
+    # ckpt = tf.train.load_checkpoint(model_weights)
     newpath = trainedNets_path + "_MSL/" + net_name
-    num_files = 1
-    display_step = 25
+    display_step = run_params["display_step"]
     sess.run(stim_iter.initializer)
-    saver = tf.train.Saver(max_to_keep=None, var_list=freeze_vars)
+    saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
     learning_curve = []
     errors_count = 0
+    step = 1
     try:
-        step = 1
-        sess.graph.finalize()
+        # sess.graph.finalize()
         # sess.run(partially_frozen)
         while True:
             # sess.run([optimizer,check_op])
             try:
                 if step == 1:
-                    saver.restore(sess, model_weights)  # TODO: here it breaks atm
+                    # saver.restore(sess, model_weights)  # TODO: here it breaks atm
                     freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                     sess.run(update_grads)
                 else:
@@ -194,7 +204,7 @@ if not testing:
                 print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
                       "{:.6f}".format(loss) + ", Training Accuracy= " + \
                       "{:.5f}".format(acc))
-            if step % 5000 == 0:
+            if step % run_params["checkpoint_step"] == 0:
                 print("Checkpointing Model...")
                 retry_count = 0
                 while True:
@@ -213,7 +223,7 @@ if not testing:
                 print("Checkpoint Complete")
 
             # Just for testing the model/call_model
-            if step == 10000:  # TODO: was 300000 but set it to 10000 according to CNN paper MSL retraining
+            if step == run_params["total_steps"]:
                 print("Break!")
                 break
             step += 1
@@ -223,7 +233,7 @@ if not testing:
         print("Corrupted file found!!")
         pdb.set_trace()
     finally:
-        print(errors_count)
+        print("Total errors: ", errors_count)
         print("Training stopped.")
 
     with open(newpath + '/learning_curve_retrained.json', 'w') as f:
