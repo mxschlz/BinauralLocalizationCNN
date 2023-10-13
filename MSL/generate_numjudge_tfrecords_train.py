@@ -16,8 +16,8 @@ goal_duration = 2.1  # CNN processing goal duration
 # render the sound
 pos_azim = [-60, -40, -20, 0, 20, 40, 60]  # alternative: [-60, -40, -20, 0, 20, 40, 60]
 pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
-stim_n_reps = 10  # number of stimulus repetitions
-exp_n_reps = 18  # number of condition repetitions in the trial sequence --> 18 to match the experiment
+stim_n_reps = 5  # number of stimulus repetitions
+exp_n_reps = 5  # number of condition repetitions in the trial sequence --> 18 to match the experiment
 
 # get stims from original experiment
 talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
@@ -85,5 +85,5 @@ print("Training set length: ", len(train))
 print("Testing set length: ", len(test))
 
 print("TFrecords training set successful: ", check_record(rec_file_train))
-print("TFrecords testing set successful: ", check_record(rec_file_train))
+print("TFrecords testing set successful: ", check_record(rec_file_test))
 
