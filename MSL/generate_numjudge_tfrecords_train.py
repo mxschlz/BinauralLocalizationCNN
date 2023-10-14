@@ -22,7 +22,7 @@ def main():
     pos_azim = [-60, -40, -20, 0, 20, 40, 60]  # alternative: [-60, -40, -20, 0, 20, 40, 60]
     pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
     stim_n_reps = 1  # number of stimulus repetitions
-    exp_n_reps = 760  # number of condition repetitions in the trial sequence --> 18 to match the experiment
+    exp_n_reps = 2  # number of condition repetitions in the trial sequence --> 18 to match the experiment
 
     # get stims from original experiment
     talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
@@ -70,7 +70,7 @@ def main():
         # show_subbands(sound)
         # sound.play()
         # print("n_sounds", n_sounds)
-        print(f"Trial number {i}/{exp_n_reps} finished. Continuing ...")
+        print(f"Trial number {i}/{sequence.n_trials} finished. Continuing ...")
 
     # divide into train and test set
     train, test = get_dataset_partitions(final_stims, train_split=0.8, test_split=0.2, shuffle=True)
