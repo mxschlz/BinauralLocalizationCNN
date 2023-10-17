@@ -30,7 +30,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "tfrecords/msl/*train.tfrecords"
+stim_tfrec_pattern = "*train.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 
 # load config array from trained network
@@ -43,15 +43,15 @@ config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 
 # default parameters
 DEFAULT_DATA_PARAM = {}
-DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5}
+DEFAULT_NET_PARAM = {'cpu_only': False, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {"multi_source_localization": True}  # adjust cost to MSL
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
-                     'batch_size': 7,
+                     'batch_size': 10,
                      'testing': False,
                      'model_version': ['100000'],
                      "display_step": 1,
                      "total_steps": 10000,
-                     "checkpoint_step": 1}
+                     "checkpoint_step": 50}
 
 # additional params
 ds_params = {}
