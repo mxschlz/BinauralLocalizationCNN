@@ -197,4 +197,4 @@ def check_record(rec_file):
 
 # testing
 if __name__ == '__main__':
-    pass
+    state, rec_idx = check_record(rec_file="/home/max/PycharmProjects/BinauralLocalizationCNN/numjudge_full_set_talkers_clear_train.tfrecords")
