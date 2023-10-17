@@ -46,12 +46,12 @@ DEFAULT_DATA_PARAM = {}
 DEFAULT_NET_PARAM = {'cpu_only': False, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {"multi_source_localization": True}  # adjust cost to MSL
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
-                     'batch_size': 10,
+                     'batch_size': 80,
                      'testing': False,
                      'model_version': ['100000'],
                      "display_step": 1,
                      "total_steps": 10000,
-                     "checkpoint_step": 50}
+                     "checkpoint_step": 5}
 
 # additional params
 ds_params = {}
@@ -181,7 +181,7 @@ if not testing:
     errors_count = 0
     step = 1
     try:
-        # sess.graph.finalize()
+        sess.graph.finalize()
         # sess.run(partially_frozen)
         while True:
             # sess.run([optimizer,check_op])
@@ -227,6 +227,7 @@ if not testing:
                 print("Break!")
                 break
             step += 1
+            print(f"Current step: {step}")
     except tf.errors.OutOfRangeError:
         print("Out of Range Error. Optimization Finished")
     except tf.errors.DataLossError as e:
