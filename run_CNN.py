@@ -151,7 +151,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name,
         # load model
         print("Starting model version: ", mv_num)
         saver = tf.train.Saver(max_to_keep=None)
-        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt"))
+        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-190"))
 
         header = ['model_pred'] + eval_keys
         # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
