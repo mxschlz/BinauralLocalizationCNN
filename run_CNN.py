@@ -29,7 +29,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 # default parameters
 DEFAULT_DATA_PARAM = {}
 DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5}
-DEFAULT_COST_PARAM = {}
+DEFAULT_COST_PARAM = {"multi_source_localization": True}
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
                      'batch_size': 16,
                      'testing': True,
