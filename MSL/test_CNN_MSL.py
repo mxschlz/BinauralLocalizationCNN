@@ -12,8 +12,8 @@ for net in range(1, 11):
     # run the model
     run_CNN(stim_tfrecs, trainedNet, res_name)
 
-# LocaAccu tfrecs
-stim_tfrecs = os.path.join('tfrecords', 'msl', "*test.tfrecords")
+# MSL
+stim_tfrecs = os.path.join('tfrecords', 'msl', "numjudge_*test.tfrecords")
 # trained net parameters
 for net in range(1, 11):
     trainedNet = os.path.join('netweights_MSL', f'net{net}')
@@ -21,3 +21,4 @@ for net in range(1, 11):
     res_name = os.path.join('Result', 'NumJudge_result')
     # run the model
     run_CNN(stim_tfrecs, trainedNet, res_name)
+
