@@ -51,5 +51,13 @@ def get_learning_curve_json(root):
     return data
 
 
-if __name__ =="__main__":
+if __name__ == "__main__":
+    import seaborn as sns
+    import matplotlib
+    matplotlib.use("TkAgg")
+    import matplotlib.pyplot as plt
+
+    sns.set_theme("paper")
     data = get_learning_curve_json(root="netweights_MSL")
+    sns.lineplot(data.iteration, data.accuracy)
+    plt.show()
