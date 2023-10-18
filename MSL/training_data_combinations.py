@@ -16,7 +16,7 @@ n_talkers = 8
 n_countries = 13
 n_speakers = 7
 conditions = [2, 3, 4, 5, 6]
-n_reps = 5  # TODO: find proper value for this
+n_reps = n_countries  # TODO: find proper value for this
 combinations = list()  # save results
 
 
