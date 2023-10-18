@@ -28,7 +28,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 # default parameters
 DEFAULT_DATA_PARAM = {}
-DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None}
+DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {}
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
                      'batch_size': 16,
@@ -151,7 +151,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name,
         # load model
         print("Starting model version: ", mv_num)
         saver = tf.train.Saver(max_to_keep=None)
-        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + str(mv_num)))
+        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt"))
 
         header = ['model_pred'] + eval_keys
         # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
@@ -187,9 +187,11 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name,
 
 
 if __name__ == '__main__':
-    netweights_path = "/home/max/Projects/BinauralLocalizationCNN/netweights/"
+    netweights_path = "/home/max/PycharmProjects/BinauralLocalizationCNN/netweights_MSL/"
     first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
     config_fname = 'config_array.npy'
     config_array = np.load(os.path.join(first_net_path, config_fname), allow_pickle=True)
-
+    stim_tfrecs = os.path.join('tfrecords', 'msl', "numjudge_*test.tfrecords")
+    res_name = os.path.join('Result', 'NumJudge_result')
+    run_CNN(stim_tfrecs, first_net_path, res_name)
 

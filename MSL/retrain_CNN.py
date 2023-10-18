@@ -46,12 +46,12 @@ DEFAULT_DATA_PARAM = {}
 DEFAULT_NET_PARAM = {'cpu_only': False, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {"multi_source_localization": True}  # adjust cost to MSL
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
-                     'batch_size': 80,
+                     'batch_size': 16,
                      'testing': False,
                      'model_version': ['100000'],
                      "display_step": 1,
                      "total_steps": 10000,
-                     "checkpoint_step": 5}
+                     "checkpoint_step": 10}
 
 # additional params
 ds_params = {}
@@ -161,11 +161,11 @@ for weight in all_vars:
     if weight.find("out") != -1:
         retrain_vars.append(weight)
 
-# get freeze variables
+# get freeze variables for debugging
 freeze_vars = unique_list(all_vars, retrain_vars)
 
 # get variable list for restoring in saver
-var_list = tf.contrib.framework.get_variables_to_restore(exclude=retrain_vars)
+var_list = tf.contrib.framework.get_variables_to_restore(exclude=None)
 
 
 if testing:
@@ -209,7 +209,7 @@ if not testing:
                 retry_count = 0
                 while True:
                     try:
-                        saver.save(sess, newpath + f'/model_{model_version}_retrained_MSL.ckpt', global_step=step,
+                        saver.save(sess, newpath + f'/model.ckpt', global_step=step,
                                    write_meta_graph=False)
                         break
                     except ValueError as e:

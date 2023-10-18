@@ -15,7 +15,7 @@ for net in range(1, 11):
 # MSL
 stim_tfrecs = os.path.join('tfrecords', 'msl', "numjudge_*test.tfrecords")
 # trained net parameters
-for net in range(1, 11):
+for net in range(1, 2):
     trainedNet = os.path.join('netweights_MSL', f'net{net}')
     # result same name
     res_name = os.path.join('Result', 'NumJudge_result')
