@@ -181,13 +181,13 @@ if not testing:
     errors_count = 0
     step = 1
     try:
-        sess.graph.finalize()
+        # sess.graph.finalize()
         # sess.run(partially_frozen)
         while True:
             # sess.run([optimizer,check_op])
             try:
                 if step == 1:
-                    # saver.restore(sess, model_weights)  # TODO: here it breaks atm
+                    # saver.restore(sess, model_weights)
                     freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                     sess.run(update_grads)
                 else:
