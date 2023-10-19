@@ -9,6 +9,7 @@ import collections
 import csv
 from copy import deepcopy
 
+
 # custom memory saving gradient
 import memory_saving_gradients
 from tensorflow.python.ops import gradients
@@ -26,16 +27,6 @@ def gradients_memory(ys, xs, grad_ys=None, **kwargs):
 gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
-# default parameters
-DEFAULT_DATA_PARAM = {}
-DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 5}
-DEFAULT_COST_PARAM = {"multi_source_localization": True}
-DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
-                     'batch_size': 16,
-                     'testing': True,
-                     'model_version': ['100000']}
-
-
 def update_param_dict(default_dict, usr_dict):
     """
     update the default dict with key/values in usr_dict
@@ -49,7 +40,7 @@ def update_param_dict(default_dict, usr_dict):
     return res_dict
 
 
-def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name,
+def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name, cfg,
             ds_params={}, net_params={}, cost_params={}, run_params={}):
     """
     run the CNN model from Francl 2022
@@ -63,10 +54,10 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name,
     :return:
     """
     # input checking
-    ds_params = update_param_dict(DEFAULT_DATA_PARAM, ds_params)
-    net_params = update_param_dict(DEFAULT_NET_PARAM, net_params)
-    run_params = update_param_dict(DEFAULT_RUN_PARAM, run_params)
-    cost_params = update_param_dict(DEFAULT_COST_PARAM, cost_params)
+    ds_params = update_param_dict(cfg.DEFAULT_DATA_PARAM, ds_params)
+    net_params = update_param_dict(cfg.DEFAULT_NET_PARAM, net_params)
+    run_params = update_param_dict(cfg.DEFAULT_RUN_PARAM, run_params)
+    cost_params = update_param_dict(cfg.DEFAULT_COST_PARAM, cost_params)
 
     # build dataset iterator
     stim_files = glob.glob(stim_tfrec_pattern)
