@@ -54,10 +54,10 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name, cfg,
     :return:
     """
     # input checking
-    ds_params = update_param_dict(cfg.DEFAULT_DATA_PARAM, ds_params)
-    net_params = update_param_dict(cfg.DEFAULT_NET_PARAM, net_params)
-    run_params = update_param_dict(cfg.DEFAULT_RUN_PARAM, run_params)
-    cost_params = update_param_dict(cfg.DEFAULT_COST_PARAM, cost_params)
+    ds_params = update_param_dict(cfg["DEFAULT_DATA_PARAM"], ds_params)
+    net_params = update_param_dict(cfg["DEFAULT_NET_PARAM"], net_params)
+    run_params = update_param_dict(cfg["DEFAULT_RUN_PARAM"], run_params)
+    cost_params = update_param_dict(cfg["DEFAULT_COST_PARAM"], cost_params)
 
     # build dataset iterator
     stim_files = glob.glob(stim_tfrec_pattern)
