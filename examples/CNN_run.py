@@ -31,7 +31,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "tfrecords/msl/*train.tfrecords"
+stim_tfrec_pattern = "tfrecords/msl/*test.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 save_name = os.path.join('Result', 'test')
 
@@ -45,12 +45,12 @@ config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 
 # default parameters
 DEFAULT_DATA_PARAM = {}
-DEFAULT_NET_PARAM = {'cpu_only': True, 'regularizer': None, "n_classes_localization": 504}
+DEFAULT_NET_PARAM = {'cpu_only': False, 'regularizer': None, "n_classes_localization": 5}
 DEFAULT_COST_PARAM = {"multi_source_localization": True}
 DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
                      'batch_size': 16,
                      'testing': True,
-                     'model_version': ['100000']}
+                     'model_version': ['190']}
 
 # additional params
 ds_params = {}
@@ -84,8 +84,6 @@ for k, v in data_samp.items():
 # build the CNN net
 # load config array from trained network
 net_name = os.path.split(curr_net)[-1]
-config_fname = 'config_array.npy'
-config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 
 # network input
 # the signal is power-transformed
