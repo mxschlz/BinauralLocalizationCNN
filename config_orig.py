@@ -4,9 +4,9 @@ CONFIG_TRAIN = dict(DEFAULT_NET_PARAM={'cpu_only': True, 'regularizer': None, "n
                                        'batch_size': 16,
                                        'testing': False,
                                        'model_version': ['100000'],  # orig model weights
-                                       "display_step": 1,
-                                       "total_steps": 10000,
-                                       "checkpoint_step": 10}
+                                       "display_step": 1000,
+                                       "total_steps": 300000,
+                                       "checkpoint_step": 5000}
                     )
 
 CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': True, 'regularizer': None, "n_classes_localization": 504},
