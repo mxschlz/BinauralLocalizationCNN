@@ -15,7 +15,7 @@ DATA_MAPPING = {
     'azim': ['train/azim', tf.int64],
     'elev': ['train/elev', tf.int64],
     'dist': ['train/dist', tf.float32],
-    "n_sounds": ["train/n_sounds", tf.int32],
+    "n_sounds": ["train/n_sounds", tf.int64],
     'hrtf_idx':  ['train/hrtf_idx', tf.int64],
     'sampling_rate':  ['train/sampling_rate', tf.int64],
     'ITD':  ['train/ITD', tf.int64],
