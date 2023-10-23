@@ -5,6 +5,7 @@ from CNN_preproc import process_stims
 from stim_util import zero_padding
 from tfrecord_gen import create_tfrecord, check_record
 from CNN_util import get_dataset_partitions
+import slab
 # from show_subbands import show_subbands
 
 
@@ -19,10 +20,12 @@ goal_duration = 2.1  # CNN processing goal duration
 pos_azim = [-60, -40, -20, 0, 20, 40, 60]  # alternative: [-60, -40, -20, 0, 20, 40, 60]
 pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
 stim_n_reps = 1  # number of stimulus repetitions
-exp_n_reps = 619  # number of condition repetitions in the trial sequence
+exp_n_reps = 1  # number of condition repetitions in the trial sequence
+n_countries = 13
 
 # get stims from original experiment
 talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
+log = slab.ResultsFile(folder="logfiles", subject="log_train_test")
 
 # gather all available stimuli
 stimlist_clear = dict()
@@ -44,10 +47,16 @@ for i, _ in enumerate(sequence):
     n_sounds = sequence.this_trial
     talkers_this_trial = random.sample(talker_ids, n_sounds)
     azi = random.sample(pos_azim, n_sounds)
+    country_idxs = random.sample(range(n_countries), n_sounds)
+    log.write(n_sounds, "n_sounds")
+    log.write(talkers_this_trial, "signals_sample")
+    log.write(azi, "speakers_sample_azimuth")
+    log.write(country_idxs, "country_idxs")
 
     for az, talker in zip(azi, talkers_this_trial):
-        stim = render_stims(random.choice(stimlist_clear[talker]), pos_azim=az, pos_elev=0, n_reps=stim_n_reps)
-        sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
+        for idx in country_idxs:
+            stim = render_stims(stimlist_clear[talker][idx], pos_azim=az, pos_elev=0, n_reps=stim_n_reps)
+            sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, goal_duration=goal_duration)
     # show_subbands(sound)
     final_stims_azi.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
@@ -57,10 +66,12 @@ for i, _ in enumerate(sequence):
 
     sound = slab.Binaural(data=np.zeros(samplerate), samplerate=samplerate)
     ele = random.sample(pos_elev, n_sounds)
+    log.write(ele, "speakers_sample_elevation")
 
     for el, talker in zip(ele, talkers_this_trial):
-        stim = render_stims(random.choice(stimlist_clear[talker]), pos_azim=0, pos_elev=el, n_reps=stim_n_reps)
-        sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
+        for idx in country_idxs:
+            stim = render_stims(stimlist_clear[talker][idx], pos_azim=0, pos_elev=el, n_reps=stim_n_reps)
+            sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, goal_duration=goal_duration)
 
     final_stims_ele.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
