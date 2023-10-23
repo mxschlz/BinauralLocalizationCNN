@@ -5,7 +5,6 @@ from CNN_preproc import process_stims
 from stim_util import zero_padding
 from tfrecord_gen import create_tfrecord, check_record
 from CNN_util import get_dataset_partitions
-from numba import cuda, jit
 # from show_subbands import show_subbands
 
 
@@ -36,7 +35,8 @@ for talker in list(talkers_clear.keys()):
 
 sequence = slab.Trialsequence(conditions=[2, 3, 4, 5, 6], n_reps=exp_n_reps)
 talker_ids = list(stimlist_clear.keys())
-final_stims = list()
+final_stims_ele = list()
+final_stims_azi = list()
 
 for i, _ in enumerate(sequence):
 
@@ -50,8 +50,8 @@ for i, _ in enumerate(sequence):
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, goal_duration=goal_duration)
     # show_subbands(sound)
-    final_stims.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
-                                                     "hrtf_idx": 0, "azim": 1, "elev": 0}})
+    final_stims_azi.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
+                                                         "hrtf_idx": 0}})
     # sound.play()
     # print("n_sounds", n_sounds)
 
@@ -63,26 +63,29 @@ for i, _ in enumerate(sequence):
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, goal_duration=goal_duration)
 
-    final_stims.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
-                                                     "hrtf_idx": 0, "azim": 0, "elev": 1}})
+    final_stims_ele.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
+                                                         "hrtf_idx": 0}})
     # show_subbands(sound)
     # sound.play()
     # print("n_sounds", n_sounds)
     print(f"Trial number {i}/{sequence.n_trials} finished. Continuing ...")
 
 # divide into train and test set
-train, test = get_dataset_partitions(final_stims, train_split=0.8, test_split=0.2, shuffle=True)
-# preprocessing
-train_final = process_stims(train)
-test_final = process_stims(test)
+for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
+    plane = "azi" if i == 0 else "ele"
+    train, test = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
+    # preprocessing
+    train_final = process_stims(train)
+    test_final = process_stims(test)
 
-# write tfrecord
-rec_file_train = 'numjudge_full_set_talkers_clear_train.tfrecords'
-rec_file_test = 'numjudge_full_set_talkers_clear_test.tfrecords'
-create_tfrecord(train_final, rec_file_train)
-create_tfrecord(test_final, rec_file_test)
+    # write tfrecord
+    rec_file_train = f'numjudge_full_set_talkers_clear_train_{plane}.tfrecords'
+    rec_file_test = f'numjudge_full_set_talkers_clear_test_{plane}.tfrecords'
+    create_tfrecord(train_final, rec_file_train)
+    create_tfrecord(test_final, rec_file_test)
 
-# check record file
-print("TFrecords training set successful: ", check_record(rec_file_train))
-print("TFrecords testing set successful: ", check_record(rec_file_test))
+    # check record file
+    print(f"{plane} TFrecords training set successful: ", check_record(rec_file_train))
+    print(f"{plane} TFrecords testing set successful: ", check_record(rec_file_test))
+
 
