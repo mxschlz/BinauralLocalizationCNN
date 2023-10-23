@@ -37,7 +37,7 @@ stim_files = glob.glob(stim_tfrec_pattern)
 save_name = os.path.join('Result', 'test')
 
 # load config array from trained network
-trainedNets_path = "netweights"
+trainedNets_path = "netweights_MSL"
 names = os.listdir(trainedNets_path)
 net_dirs = sorted([n for n in names if os.path.isdir(os.path.join(trainedNets_path, n))])
 curr_net = os.path.join(trainedNets_path, net_dirs[0])
