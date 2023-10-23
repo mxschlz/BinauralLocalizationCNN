@@ -170,3 +170,4 @@ cython_debug/
 /tobedeleted/
 /numjudge_full_set_talkers_clear_test.tfrecords
 /numjudge_full_set_talkers_clear_train.tfrecords
+/logfiles/
