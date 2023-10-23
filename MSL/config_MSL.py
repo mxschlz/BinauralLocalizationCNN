@@ -14,5 +14,6 @@ CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n
                    DEFAULT_RUN_PARAM={'learning_rate': 1e-3,
                                       'batch_size': 16,
                                       'testing': True,
-                                      'model_version': ['100000']}
+                                      'model_version': ['150']},
+                   DEFAULT_DATA_PARAM={}
                    )
