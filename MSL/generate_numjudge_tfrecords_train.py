@@ -20,7 +20,7 @@ goal_duration = 2.0  # CNN processing goal duration
 pos_azim = [-60, -40, -20, 0, 20, 40, 60]  # alternative: [-60, -40, -20, 0, 20, 40, 60]
 pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
 stim_n_reps = 1  # number of stimulus repetitions
-exp_n_reps = 1  # number of condition repetitions in the trial sequence
+exp_n_reps = 619  # number of condition repetitions in the trial sequence
 n_countries = 13
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 
