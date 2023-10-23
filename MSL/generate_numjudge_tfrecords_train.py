@@ -6,14 +6,14 @@ from stim_util import zero_padding
 from tfrecord_gen import create_tfrecord, check_record
 from CNN_util import get_dataset_partitions
 import slab
-# from show_subbands import show_subbands
+from show_subbands import show_subbands
 
 
 # PIPELINE FOR NUMJUDGE TFRECORD GENERATION
 # Render each talker for a given spatial position (azi, ele) in a trial separately.
 # Afterwards, add everything together.
 samplerate = 44100  # initial samplerate for CNN
-goal_duration = 2.1  # CNN processing goal duration
+goal_duration = 2.0  # CNN processing goal duration
 
 # simulate experiment sequence by rendering and adding sounds to create a complex multi-source environment
 # render the sound
@@ -22,6 +22,7 @@ pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 6
 stim_n_reps = 1  # number of stimulus repetitions
 exp_n_reps = 1  # number of condition repetitions in the trial sequence
 n_countries = 13
+cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 
 # get stims from original experiment
 talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
@@ -57,8 +58,8 @@ for i, _ in enumerate(sequence):
         for idx in country_idxs:
             stim = render_stims(stimlist_clear[talker][idx], pos_azim=az, pos_elev=0, n_reps=stim_n_reps)
             sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
-    sound = zero_padding(sound, goal_duration=goal_duration)
-    # show_subbands(sound)
+    sound = zero_padding(sound, type="front", goal_duration=goal_duration)
+    show_subbands(sound)
     final_stims_azi.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
                                                          "hrtf_idx": 0}})
     # sound.play()
@@ -72,14 +73,14 @@ for i, _ in enumerate(sequence):
         for idx in country_idxs:
             stim = render_stims(stimlist_clear[talker][idx], pos_azim=0, pos_elev=el, n_reps=stim_n_reps)
             sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
-    sound = zero_padding(sound, goal_duration=goal_duration)
+    sound = zero_padding(sound, type="front", goal_duration=goal_duration)
 
     final_stims_ele.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
                                                          "hrtf_idx": 0}})
-    # show_subbands(sound)
+    show_subbands(sound)
     # sound.play()
     # print("n_sounds", n_sounds)
-    print(f"Trial number {i}/{sequence.n_trials} finished. Continuing ...")
+    print(f"Trial number {i+1}/{sequence.n_trials} finished. Continuing ...")
 
 # divide into train and test set
 for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
@@ -87,8 +88,8 @@ for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
     coords = pos_azim if plane == "azi" else pos_elev
     train, test = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
     # preprocessing
-    train_final = process_stims(train)
-    test_final = process_stims(test)
+    train_final = process_stims(train, coch_param=cochleagram_params)
+    test_final = process_stims(test, coch_param=cochleagram_params)
 
     # write tfrecord
     rec_file_train = f'numjudge_full_set_talkers_clear_train_{plane}_{coords}.tfrecords'
