@@ -6,7 +6,7 @@ from stim_util import zero_padding
 from tfrecord_gen import create_tfrecord, check_record
 from CNN_util import get_dataset_partitions
 import slab
-from show_subbands import show_subbands
+# from show_subbands import show_subbands
 
 
 # PIPELINE FOR NUMJUDGE TFRECORD GENERATION
@@ -58,7 +58,7 @@ for i, _ in enumerate(sequence):
         stim = render_stims(stimlist_clear[talker][country_idx], pos_azim=az, pos_elev=0, n_reps=stim_n_reps)
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, type="front", goal_duration=goal_duration)
-    show_subbands(sound)
+    # show_subbands(sound)
     final_stims_azi.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
                                                          "hrtf_idx": 0}})
     # sound.play()
@@ -75,7 +75,7 @@ for i, _ in enumerate(sequence):
 
     final_stims_ele.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
                                                          "hrtf_idx": 0}})
-    show_subbands(sound)
+    # show_subbands(sound)
     # sound.play()
     # print("n_sounds", n_sounds)
     print(f"Trial number {i+1}/{sequence.n_trials} finished. Continuing ...")
