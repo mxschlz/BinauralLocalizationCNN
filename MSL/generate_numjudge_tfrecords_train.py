@@ -84,16 +84,19 @@ for i, _ in enumerate(sequence):
 for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
     plane = "azi" if i == 0 else "ele"
     coords = pos_azim if plane == "azi" else pos_elev
-    train, test = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
+    train, test, val = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.1, val_split=0.1, shuffle=True)
     # preprocessing
     train_final = process_stims(train, coch_param=cochleagram_params)
     test_final = process_stims(test, coch_param=cochleagram_params)
+    val_final = process_stims(val, coch_param=cochleagram_params)
 
     # write tfrecord
-    rec_file_train = f'numjudge_full_set_talkers_clear_train_{plane}_{coords}.tfrecords'
-    rec_file_test = f'numjudge_full_set_talkers_clear_test_{plane}_{coords}.tfrecords'
+    rec_file_train = f'numjudge_talkers_clear_train_{plane}_{coords}.tfrecords'
+    rec_file_test = f'numjudge_talkers_clear_test_{plane}_{coords}.tfrecords'
+    rec_file_val = f'numjudge_talkers_clear_val_{plane}_{coords}.tfrecords'
     create_tfrecord(train_final, rec_file_train)
     create_tfrecord(test_final, rec_file_test)
+    create_tfrecord(val_final, rec_file_val)
 
     # check record file
     print(f"{plane} TFrecords training set successful: ", check_record(rec_file_train))
