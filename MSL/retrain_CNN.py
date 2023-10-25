@@ -15,6 +15,7 @@ import pdb
 import memory_saving_gradients
 from tensorflow.python.ops import gradients
 from run_CNN import update_param_dict
+from MSL.config_MSL import CONFIG_TRAIN as cfg
 # import mem_util
 
 # this controls CUDA convolution optimization
@@ -30,7 +31,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "*train.tfrecords"
+stim_tfrec_pattern = "*train*.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 
 # load config array from trained network
@@ -42,16 +43,6 @@ config_fname = 'config_array.npy'
 config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 
 # default parameters
-DEFAULT_DATA_PARAM = {}
-DEFAULT_NET_PARAM = {'cpu_only': False, 'regularizer': None, "n_classes_localization": 5}
-DEFAULT_COST_PARAM = {"multi_source_localization": True}  # adjust cost to MSL
-DEFAULT_RUN_PARAM = {'learning_rate': 1e-3,
-                     'batch_size': 16,
-                     'testing': False,
-                     'model_version': ['100000'],
-                     "display_step": 1,
-                     "total_steps": 10000,
-                     "checkpoint_step": 10}
 
 # additional params
 ds_params = {}
@@ -59,10 +50,10 @@ net_params = {}
 cost_params = {}
 run_params = {}
 
-ds_params = update_param_dict(DEFAULT_DATA_PARAM, ds_params)
-net_params = update_param_dict(DEFAULT_NET_PARAM, net_params)
-run_params = update_param_dict(DEFAULT_RUN_PARAM, run_params)
-cost_params = update_param_dict(DEFAULT_COST_PARAM, cost_params)
+ds_params = update_param_dict(cfg["DEFAULT_DATA_PARAM"], ds_params)
+net_params = update_param_dict(cfg["DEFAULT_NET_PARAM"], net_params)
+run_params = update_param_dict(cfg["DEFAULT_RUN_PARAM"], run_params)
+cost_params = update_param_dict(cfg["DEFAULT_COST_PARAM"], cost_params)
 
 # build dataset iterator
 stim_files = glob.glob(stim_tfrec_pattern)
@@ -70,7 +61,7 @@ stim_feature = get_feature_dict(stim_files[0])
 stim_dset = build_tfrecords_iterator(stim_tfrec_pattern, stim_feature, **ds_params)
 
 # from the stim_dset, create a batched data iterator
-batch_size = DEFAULT_RUN_PARAM['batch_size']
+batch_size = cfg["DEFAULT_RUN_PARAM"]['batch_size']
 batch_size_tf = tf.constant(batch_size, dtype=tf.int64)
 stim_dset = stim_dset.shuffle(buffer_size=batch_size). \
     batch(batch_size=batch_size_tf, drop_remainder=True)
@@ -94,7 +85,7 @@ config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 new_sig_nonlin = tf.pow(data_samp['train/image'], 0.3)
 
 # build the neural network
-net = NetBuilder(cpu_only=DEFAULT_NET_PARAM['cpu_only'])
+net = NetBuilder(cpu_only=cfg["DEFAULT_NET_PARAM"]['cpu_only'])
 net_out = net.build(config_array, new_sig_nonlin, **net_params)
 
 # regularizer
