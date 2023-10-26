@@ -8,6 +8,10 @@ import numpy as np
 import collections
 import csv
 from copy import deepcopy
+import time
+from CNN_util import freeze_session
+import pdb
+import json
 
 
 # custom memory saving gradient
@@ -40,7 +44,7 @@ def update_param_dict(default_dict, usr_dict):
     return res_dict
 
 
-def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name, cfg,
+def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             ds_params={}, net_params={}, cost_params={}, run_params={}):
     """
     run the CNN model from Francl 2022
@@ -79,7 +83,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name, cfg,
 
     # build the CNN net
     # load config array from trained network
-    net_name = os.path.split(trainedNet_path)[-1]
+    net_weights, net_name = os.path.split(trainedNet_path)
     config_fname = 'config_array.npy'
     config_array = np.load(os.path.join(trainedNet_path, config_fname), allow_pickle=True)
 
@@ -135,42 +139,127 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, save_name, cfg,
     eval_keys = list(data_label.keys())
     eval_vars = list(data_label.values())
 
-    # only consider testing
+    testing = run_params["testing"]
     model_version = run_params['model_version']
-    for mv_num in model_version:
+    if testing:
+        for mv_num in model_version:
+            sess.run(stim_iter.initializer)
+            # load model
+            print("Starting model version: ", mv_num)
+            saver = tf.train.Saver(max_to_keep=None)
+            saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-190"))
+
+            header = ['model_pred'] + eval_keys
+            # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
+            csv_path = "{}_model_{}_{}.csv".format(save_name, net_name, mv_num)
+            csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
+            csv_writer = csv.writer(csv_handle)
+            csv_writer.writerow(header)
+
+            while True:
+                # running individual batches
+                try:
+                    pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
+                    # prepare result to write into .csv
+                    csv_rows = list(zip(pd, *e_vars))
+                    # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
+                    print("Writing data to file ...")
+                    csv_writer.writerows(csv_rows)
+                except tf.errors.ResourceExhaustedError:
+                    print("Out of memory error")
+                    break
+                except tf.errors.OutOfRangeError:
+                    print('Dataset finished')
+                    break
+
+                finally:
+                    pass
+
+            # close the csv file
+            csv_handle.close()
+    if not testing:
+        # search for dense layer weights or posterior
+        # all variables
+        all_vars = list(set(v.op.name for v in tf.global_variables()).difference([]))
+
+        # retrain variables
+        retrain_vars = list()
+        for weight in all_vars:
+            if weight.find("fc") != -1:
+                retrain_vars.append(weight)
+            if weight.find("out") != -1:
+                retrain_vars.append(weight)
+
+        # get variable list for restoring in saver
+        var_list = tf.contrib.framework.get_variables_to_restore(exclude=None)
+        # model_weights = os.path.join(net_name, "model.ckpt-" + model_version[0])
+        # ckpt = tf.train.load_checkpoint(model_weights)
+        newpath = os.path.join(net_weights + "_MSL/" + net_name)
+        display_step = run_params["display_step"]
         sess.run(stim_iter.initializer)
-        # load model
-        print("Starting model version: ", mv_num)
-        saver = tf.train.Saver(max_to_keep=None)
-        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-190"))
+        saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
+        learning_curve = []
+        errors_count = 0
+        step = 1
+        try:
+            # sess.graph.finalize()
+            # sess.run(partially_frozen)
+            while True:
+                # sess.run([optimizer,check_op])
+                try:
+                    if step == 1:
+                        # saver.restore(sess, model_weights)
+                        freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
+                        sess.run(update_grads)
+                    else:
+                        sess.run(update_grads)
+                # sess.run(update_grads)
+                except tf.errors.InvalidArgumentError as e:
+                    print(e.message)
+                    errors_count += 1
+                    continue
+                if step % display_step == 0:
+                    # Calculate batch loss and accuracy
+                    loss, acc, n_sources = sess.run([cost, accuracy, data_label['train/n_sounds']])
+                    # print("Batch Labels: ",az)
+                    print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
+                          "{:.6f}".format(loss) + ", Training Accuracy= " + \
+                          "{:.5f}".format(acc))
+                if step % run_params["checkpoint_step"] == 0:
+                    print("Checkpointing Model...")
+                    retry_count = 0
+                    while True:
+                        try:
+                            saver.save(sess, newpath + f'/model.ckpt', global_step=step,
+                                       write_meta_graph=False)
+                            break
+                        except ValueError as e:
+                            if retry_count > 36:
+                                print("Maximum wait time reached(6H). Terminating Program.")
+                                raise e from None
+                            print("Checkpointing failed. Retrying in 10 minutes...")
+                            time.sleep(600)
+                            retry_count += 1
+                    learning_curve.append([int(step * batch_size), float(acc)])
+                    print("Checkpoint Complete")
 
-        header = ['model_pred'] + eval_keys
-        # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
-        csv_path = "{}_model_{}_{}.csv".format(save_name, net_name, mv_num)
-        csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
-        csv_writer = csv.writer(csv_handle)
-        csv_writer.writerow(header)
+                # Just for testing the model/call_model
+                if step == run_params["total_steps"]:
+                    print("Break!")
+                    break
+                step += 1
+                print(f"Current step: {step}")
+        except tf.errors.OutOfRangeError:
+            print("Out of Range Error. Optimization Finished")
+        except tf.errors.DataLossError as e:
+            print("Corrupted file found!!")
+            pdb.set_trace()
+        finally:
+            print("Total errors: ", errors_count)
+            print("Training stopped.")
 
-        while True:
-            # running individual batches
-            try:
-                pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
-                # prepare result to write into .csv
-                csv_rows = list(zip(pd, *e_vars))
-                # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
-                csv_writer.writerows(csv_rows)
-            except tf.errors.ResourceExhaustedError:
-                print("Out of memory error")
-                break
-            except tf.errors.OutOfRangeError:
-                print('Dataset finished')
-                break
-
-            finally:
-                pass
-
-        # close the csv file
-        csv_handle.close()
+        with open(newpath + '/learning_curve_retrained.json', 'w') as f:
+            json.dump(learning_curve, f)
 
     # cleanup
     sess.close()
