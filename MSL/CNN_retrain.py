@@ -162,7 +162,7 @@ var_list = tf.contrib.framework.get_variables_to_restore(exclude=None)
 if testing:
     print("Please set testing param to False in order to retrain the CNN!")
 if not testing:
-    model_weights = os.path.join(curr_net, "model.ckpt-" + model_version[0])
+    # model_weights = os.path.join(curr_net, "model.ckpt-" + model_version[0])
     # ckpt = tf.train.load_checkpoint(model_weights)
     newpath = trainedNets_path + "_MSL/" + net_name
     display_step = run_params["display_step"]
