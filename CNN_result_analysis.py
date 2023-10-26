@@ -57,6 +57,10 @@ def CNNpos_to_loc(CNN_pos, bin_size=5):
     return bin_size * bin_idx[1], bin_size * 2 * bin_idx[0]
 
 
+def CNNpos_to_n_sounds(CNN_pos):
+    return [x+2 for x in CNN_pos]
+
+
 def result_figure1(model_data_patt, human_data_path):
     """
     analyze and plot figure 1
