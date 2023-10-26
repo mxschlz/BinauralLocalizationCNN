@@ -32,7 +32,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "tfrecords/msl/*test.tfrecords"
+stim_tfrec_pattern = "*test*.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 save_name = os.path.join('Result', 'test')
 
@@ -243,6 +243,6 @@ for mv_num in model_version:
         with open(newpath + '/learning_curve_retrained.json', 'w') as f:
             json.dump(learning_curve, f)
 
-    # cleanup
-    sess.close()
-    tf.reset_default_graph()
+# cleanup
+sess.close()
+tf.reset_default_graph()
