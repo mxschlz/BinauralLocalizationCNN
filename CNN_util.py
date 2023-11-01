@@ -226,6 +226,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
     :param transposed_tones:
     :param precedence_effect:
     :param tone_version:
+    :param multi_source_localization:
     :return:
     """
     is_origin = True
