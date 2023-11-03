@@ -101,11 +101,26 @@ if net_params['regularizer'] is not None:
 
 # network outputs
 # network maximum-likelihood prediction
+"""
 cond_dist = tf.nn.softmax(net_out)
 net_pred = tf.argmax(cond_dist, 1)
 top_k = tf.nn.top_k(net_out, 5)
 # correct predictions
 correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
+accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+"""
+
+### TEST ###
+# Define the number of output neurons (assuming you have 504 output neurons)
+num_output_neurons = net_out.shape[1].value
+# Define the network outputs (logits) for each output neuron
+net_out_per_neuron = [net_out[:, i] for i in range(num_output_neurons)]
+# Apply sigmoid activation function to each output neuron
+sigmoid_outputs = [tf.nn.sigmoid(out) for out in net_out_per_neuron]
+# Concatenate the sigmoid outputs to get the final output tensor
+net_out_sigmoid = tf.stack(sigmoid_outputs, axis=1)
+# Correct predictions (as before)
+correct_pred = tf.equal(tf.argmax(net_out_sigmoid, 1), tf.cast(net_labels, tf.int64))
 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
 # launch the model
