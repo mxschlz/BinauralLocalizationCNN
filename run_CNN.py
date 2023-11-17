@@ -103,13 +103,16 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                                  (tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)))
 
     # get network cost and labels
-    cost, net_labels = cost_function(data_samp, net_out, **cost_params)
+    cost, net_labels, multihot_labels = cost_function(data_samp, net_out, **cost_params)
     if net_params['regularizer'] is not None:
         cost = tf.add(cost, reg_term)
 
     # network outputs
     # network maximum-likelihood prediction
-    cond_dist = tf.nn.softmax(net_out)
+    cond_dist = tf.nn.sigmoid(net_out)
+    auc, update_op_auc = tf.metrics.auc(multihot_labels, cond_dist)
+    # Evaluate model
+    correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
     net_pred = tf.argmax(cond_dist, 1)
     top_k = tf.nn.top_k(net_out, 5)
     # correct predictions
@@ -142,6 +145,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     testing = run_params["testing"]
     model_version = run_params['model_version']
     if testing:
+        batch_conditional = []
+        batch_acc = []
         for mv_num in model_version:
             sess.run(stim_iter.initializer)
             # load model
@@ -159,7 +164,10 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             while True:
                 # running individual batches
                 try:
-                    pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
+                    if cfg["DEFAULT_COST_PARAM"]:
+                        pred, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
+                    else:
+                        pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
                     # prepare result to write into .csv
                     csv_rows = list(zip(pd, *e_vars))
                     # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
@@ -220,11 +228,12 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                     continue
                 if step % display_step == 0:
                     # Calculate batch loss and accuracy
-                    loss, acc, n_sources = sess.run([cost, accuracy, data_label['train/n_sounds']])
+                    loss, acc, idx, auc_out = sess.run(
+                        [cost, accuracy, data_label['train/cnn_idx'], auc, update_op_auc])
                     # print("Batch Labels: ",az)
                     print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
                           "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                          "{:.5f}".format(acc))
+                          "{:.5f}".format(acc) + ", AUC= " + "{:.5f}".format(auc))
                 if step % run_params["checkpoint_step"] == 0:
                     print("Checkpointing Model...")
                     retry_count = 0
