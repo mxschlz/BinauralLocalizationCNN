@@ -68,6 +68,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     stim_feature = get_feature_dict(stim_files[0])
     stim_dset = build_tfrecords_iterator(stim_tfrec_pattern, stim_feature, **ds_params)
 
+    is_msl = cfg["DEFAULT_COST_PARAM"]["multi_source_localization"]
     # from the stim_dset, create a batched data iterator
     batch_size = run_params['batch_size']
     batch_size_tf = tf.constant(batch_size, dtype=tf.int64)
@@ -103,16 +104,18 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                                  (tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)))
 
     # get network cost and labels
-    cost, net_labels, multihot_labels = cost_function(data_samp, net_out, **cost_params)
+    if is_msl:  # multi source localization
+        cost, net_labels = cost_function(data_samp, net_out, **cost_params)
+        cond_dist = tf.nn.sigmoid(net_out)
+        auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist)
+    elif not is_msl:  # single sound source localization
+        cost, net_labels = cost_function(data_samp, net_out, **cost_params)
+        cond_dist = tf.nn.softmax(net_out)
+
     if net_params['regularizer'] is not None:
         cost = tf.add(cost, reg_term)
 
-    # network outputs
-    # network maximum-likelihood prediction
-    cond_dist = tf.nn.sigmoid(net_out)
-    auc, update_op_auc = tf.metrics.auc(multihot_labels, cond_dist)
     # Evaluate model
-    correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
     net_pred = tf.argmax(cond_dist, 1)
     top_k = tf.nn.top_k(net_out, 5)
     # correct predictions
@@ -145,8 +148,6 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     testing = run_params["testing"]
     model_version = run_params['model_version']
     if testing:
-        batch_conditional = []
-        batch_acc = []
         for mv_num in model_version:
             sess.run(stim_iter.initializer)
             # load model
@@ -164,7 +165,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             while True:
                 # running individual batches
                 try:
-                    if cfg["DEFAULT_COST_PARAM"]:
+                    if is_msl:
                         pred, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
                     else:
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
@@ -228,9 +229,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                     continue
                 if step % display_step == 0:
                     # Calculate batch loss and accuracy
-                    loss, acc, idx, auc_out = sess.run(
+                    loss, acc, labels, auc_out = sess.run(
                         [cost, accuracy, data_label['train/cnn_idx'], auc, update_op_auc])
-                    # print("Batch Labels: ",az)
+                    print("Batch Labels: ", labels)
                     print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
                           "{:.6f}".format(loss) + ", Training Accuracy= " + \
                           "{:.5f}".format(acc) + ", AUC= " + "{:.5f}".format(auc))
