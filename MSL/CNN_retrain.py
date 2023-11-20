@@ -42,8 +42,6 @@ curr_net = os.path.join(trainedNets_path, net_dirs[0])
 config_fname = 'config_array.npy'
 config_array = np.load(os.path.join(curr_net, config_fname), allow_pickle=True)
 
-# default parameters
-
 # additional params
 ds_params = {}
 net_params = {}
@@ -95,7 +93,7 @@ if net_params['regularizer'] is not None:
                              (tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)))
 
 # get network cost and labels
-cost, net_labels, multihot_labels = cost_function(data_samp, net_out, **cost_params)
+cost, net_labels = cost_function(data_samp, net_out, **cost_params)
 if net_params['regularizer'] is not None:
     cost = tf.add(cost, reg_term)
 
@@ -111,7 +109,7 @@ accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 """
 
 cond_dist = tf.nn.sigmoid(net_out)
-auc, update_op_auc = tf.metrics.auc(multihot_labels, cond_dist)
+auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist)
 # Evaluate model
 correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))

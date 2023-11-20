@@ -238,7 +238,9 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
     elif precedence_effect:
         labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample['train/start_sample']))
     elif multi_source_localization:
-        labels_batch_sphere = data_sample['train/cnn_idx']
+        labels_batch_sphere = data_sample['train/cnn_idxs']
+        if not isinstance(labels_batch_sphere, tf.SparseTensor):
+            labels_batch_sphere = tf.sparse.from_dense(labels_batch_sphere)
         multihot_labels = tf.cast(tf.sparse.to_indicator(labels_batch_sphere, 504),
                                   tf.float32)
     else:
