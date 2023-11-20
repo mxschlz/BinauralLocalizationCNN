@@ -241,6 +241,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
         labels_batch_sphere = data_sample['train/cnn_idxs']
         if not isinstance(labels_batch_sphere, tf.SparseTensor):
             labels_batch_sphere = tf.sparse.from_dense(labels_batch_sphere)
+            labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample["train/cnn_idxs"]))
         multihot_labels = tf.cast(tf.sparse.to_indicator(labels_batch_sphere, 504),
                                   tf.float32)
     else:
@@ -257,7 +258,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
         labels_batch_cost_sphere = tf.squeeze(labels_batch_sphere)
     if multi_source_localization:
         cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=net_out, labels=multihot_labels))  # check here. Logits is model estimate, labels are true labels. Think i got the right labels
-        return cost, multihot_labels
+        return cost, multihot_labels, labels_batch_cost_sphere
     else:
         cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
                               (logits=net_out, labels=labels_batch_cost_sphere))
@@ -265,16 +266,34 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
 
 
 def get_dataset_partitions(ds, train_split=0.8, test_split=0.1, val_split=0.1, shuffle=True):
+    """
+    Splits a dataset into training, testing, and validation partitions.
+
+    Parameters:
+    - ds (list): The dataset to be partitioned.
+    - train_split (float): The proportion of the dataset to allocate for training (default is 0.8).
+    - test_split (float): The proportion of the dataset to allocate for testing (default is 0.1).
+    - val_split (float): The proportion of the dataset to allocate for validation (default is 0.1).
+    - shuffle (bool): Whether to shuffle the dataset before partitioning (default is True).
+
+    Returns:
+    - tuple: A tuple containing three lists - training dataset, testing dataset, and validation dataset.
+    """
+
+    # Ensure that the sum of splits is equal to 1
     assert (train_split + test_split + val_split) == 1
 
+    # Shuffle the dataset if specified
     if shuffle:
         np.random.shuffle(ds)  # shuffles in-place
 
+    # Calculate the sizes of each partition
     ds_size = len(ds)
     train_size = int(train_split * ds_size)
     test_size = int(test_split * ds_size)
     val_size = int(val_split * ds_size)
 
+    # Partition the dataset
     train_ds = ds[:train_size]
     test_ds = ds[train_size:train_size+test_size]
     val_ds = ds[train_size+test_size:train_size+val_size+test_size]
@@ -315,7 +334,7 @@ if __name__ == "__main__":
     import os
     import NetBuilder
 
-    file_pattern = 'tfrecords/msl/numjudge_full_set_talkers_clear_train.tfrecords'
+    file_pattern = '*train*.tfrecords'
     files = glob.glob(file_pattern)
     rec_feature = get_feature_dict(files[0])
     # build the dataset iterator
@@ -326,7 +345,7 @@ if __name__ == "__main__":
     stim_dset = dataset.shuffle(buffer_size=batch_size). \
         batch(batch_size=batch_size_tf, drop_remainder=True)
     stim_iter = stim_dset.make_initializable_iterator()
-    data_samp = stim_iter.get_next()
+    data_sample = stim_iter.get_next()
 
     trainedNets_path = "netweights"
     names = os.listdir(trainedNets_path)
@@ -339,11 +358,11 @@ if __name__ == "__main__":
     # network input
     # the signal is power-transformed
     # coch_sig = data_samp['train/image']
-    new_sig_nonlin = tf.pow(data_samp['train/image'], 0.3)
+    new_sig_nonlin = tf.pow(data_sample['train/image'], 0.3)
 
     # build the neural network
     net = NetBuilder.NetBuilder(cpu_only=True)
     net_out = net.build(config_array, new_sig_nonlin, regularizer=None)
-    cost, labels = cost_function(data_samp, net_out, multi_source_localization=True)
+    cost, labels = cost_function(data_sample, net_out, multi_source_localization=True)
 
 
