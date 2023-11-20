@@ -255,7 +255,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
         labels_batch_cost_sphere = tf.squeeze(labels_batch_sphere)
     if multi_source_localization:
         cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=net_out, labels=multihot_labels))  # check here. Logits is model estimate, labels are true labels. Think i got the right labels
-        return cost, labels_batch_cost_sphere, multihot_labels
+        return cost, multihot_labels
     else:
         cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
                               (logits=net_out, labels=labels_batch_cost_sphere))
