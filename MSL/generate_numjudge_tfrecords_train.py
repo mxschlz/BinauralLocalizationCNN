@@ -1,3 +1,4 @@
+import stim_util
 from stim_gen import *
 import pickle
 from CNN_preproc import process_stims
@@ -19,7 +20,7 @@ goal_duration = 2.0  # CNN processing goal duration
 pos_azim = [-60, -40, -20, 0, 20, 40, 60]  # alternative: [-60, -40, -20, 0, 20, 40, 60]
 pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
 stim_n_reps = 1  # number of stimulus repetitions
-exp_n_reps = 1  # number of condition repetitions in the trial sequence
+exp_n_reps = 700  # number of condition repetitions in the trial sequence
 n_countries = 13
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 
@@ -53,17 +54,15 @@ for i, _ in enumerate(sequence):
     log.write(azi, "speakers_sample_azimuth")
     log.write(country_idxs, "country_idxs")
 
-    cnn_idxs = list()
-    hrtf_idxs = list()
+    binary_label = np.zeros(504, dtype=np.int64)
     for az, talker, country_idx in zip(azi, talkers_this_trial, country_idxs):
         stim = render_stims(stimlist_clear[talker][country_idx], pos_azim=az, pos_elev=0, n_reps=stim_n_reps)
-        cnn_idxs.append(stim[0]["label"]["cnn_idx"])
-        hrtf_idxs.append(stim[0]["label"]["hrtf_idx"])
+        binary_label[stim[0]["label"]["cnn_idx"]] = 1
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, type="front", goal_duration=goal_duration)
     # show_subbands(sound)
     final_stims_azi.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
-                                                         "hrtf_idx": 0, "cnn_idxs": cnn_idxs}})
+                                                         "hrtf_idx": 0, "binary_label": binary_label}})
     # sound.play()
     # print("n_sounds", n_sounds)
 
@@ -71,17 +70,15 @@ for i, _ in enumerate(sequence):
     ele = random.sample(pos_elev, n_sounds)
     log.write(ele, "speakers_sample_elevation")
 
-    cnn_idxs = list()
-    hrtf_idxs = list()
+    binary_label = np.zeros(504, dtype=np.int64)
     for el, talker, country_idx in zip(ele, talkers_this_trial, country_idxs):
         stim = render_stims(stimlist_clear[talker][country_idx], pos_azim=0, pos_elev=el, n_reps=stim_n_reps)
-        cnn_idxs.append(stim[0]["label"]["cnn_idx"])
-        hrtf_idxs.append(stim[0]["label"]["hrtf_idx"])
+        binary_label[stim[0]["label"]["cnn_idx"]] = 1
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, type="front", goal_duration=goal_duration)
 
     final_stims_ele.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
-                                                         "hrtf_idx": 0, "cnn_idxs": cnn_idxs}})
+                                                         "hrtf_idx": 0, "binary_label": binary_label}})
     # show_subbands(sound)
     # sound.play()
     # print("n_sounds", n_sounds)
