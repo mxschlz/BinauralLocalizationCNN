@@ -32,7 +32,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "*test*.tfrecords"
+stim_tfrec_pattern = "/home/max/PycharmProjects/BinauralLocalizationCNN/tfrecords/msl/locaaccu_noise_v.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 save_name = os.path.join('Result', 'test')
 
@@ -53,7 +53,7 @@ run_params = {}
 ds_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_DATA_PARAM"], ds_params)
 net_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_NET_PARAM"], net_params)
 run_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_RUN_PARAM"], run_params)
-cost_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_COST_PARAM"], cost_params)
+# cost_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_COST_PARAM"], cost_params)
 
 # build dataset iterator
 stim_files = glob.glob(stim_tfrec_pattern)
