@@ -238,10 +238,10 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
     elif precedence_effect:
         labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample['train/start_sample']))
     elif multi_source_localization:
-        labels_batch_sphere = data_sample['train/cnn_idxs']
+        labels_batch_sphere = data_sample['train/binary_label']
         if not isinstance(labels_batch_sphere, tf.SparseTensor):
             labels_batch_sphere = tf.sparse.from_dense(labels_batch_sphere)
-            labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample["train/cnn_idxs"]))
+            # labels_batch_cost_sphere = tf.squeeze(tf.zeros_like(data_sample["train/cnn_idxs"]))
         multihot_labels = tf.cast(tf.sparse.to_indicator(labels_batch_sphere, 504),
                                   tf.float32)
     else:
@@ -258,7 +258,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
         labels_batch_cost_sphere = tf.squeeze(labels_batch_sphere)
     if multi_source_localization:
         cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=net_out, labels=multihot_labels))  # check here. Logits is model estimate, labels are true labels. Think i got the right labels
-        return cost, multihot_labels, labels_batch_cost_sphere
+        return cost, multihot_labels
     else:
         cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
                               (logits=net_out, labels=labels_batch_cost_sphere))
