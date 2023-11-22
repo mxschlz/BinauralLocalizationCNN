@@ -98,20 +98,10 @@ if net_params['regularizer'] is not None:
     cost = tf.add(cost, reg_term)
 
 # network outputs
-# network maximum-likelihood prediction
-"""
-cond_dist = tf.nn.softmax(net_out)
-net_pred = tf.argmax(cond_dist, 1)
-top_k = tf.nn.top_k(net_out, 5)
-# correct predictions
-correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
-accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-"""
-
 cond_dist = tf.nn.sigmoid(net_out)
 auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist)
 # Evaluate model
-correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
+correct_pred = tf.equal(net_out, net_labels)
 accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
 # launch the model
@@ -186,7 +176,7 @@ if not testing:
                 if step == 1:
                     # saver.restore(sess, model_weights)
                     freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
-                    sess.run(update_grads)
+                    sess.run(update_grads)  # TODO: key error cant parse serialized example.
                 else:
                     sess.run(update_grads)
             # sess.run(update_grads)
@@ -196,7 +186,7 @@ if not testing:
                 continue
             if step % display_step == 0:
                 # Calculate batch loss and accuracy
-                loss, acc, idx, auc_out = sess.run([cost, accuracy, data_label['train/cnn_idx'], auc, update_op_auc])
+                loss, acc, idx, auc_out = sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
                 # print("Batch Labels: ",az)
                 print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
                       "{:.6f}".format(loss) + ", Training Accuracy= " + \
