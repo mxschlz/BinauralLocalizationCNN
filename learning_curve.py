@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 matplotlib.use("TkAgg")
 
 
-def get_learning_curve_json(root):
+def get_learning_curve_json(root, type="auc"):
     """
     Extracts learning curve data from JSON files in a directory and returns it as a Pandas DataFrame
     with a multi-index.
@@ -33,7 +33,7 @@ def get_learning_curve_json(root):
         full_path = os.path.join(root, d)
 
         # Find JSON files within the subdirectory
-        files = glob.glob(f"{full_path}/*json")
+        files = glob.glob(f"{full_path}/*{type}*.json")
 
         if files:
             # Load JSON content and extract iterations and accuracy values
