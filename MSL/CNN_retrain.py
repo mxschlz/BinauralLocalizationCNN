@@ -31,7 +31,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "*train*.tfrecords"
+stim_tfrec_pattern = "*train_azi*.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 
 # load config array from trained network
@@ -186,11 +186,11 @@ if not testing:
                 continue
             if step % display_step == 0:
                 # Calculate batch loss and accuracy
-                loss, acc, bl, auc_out = sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
+                loss, acc, bl, auc_out, update_op_auc_out = sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
                 print("Batch Labels: ", bl)
                 print("Iter " + str(step * batch_size) + ", Minibatch Loss = " + \
                       "{:.6f}".format(loss) + ", Training Accuracy = " + \
-                      "{:.5f}".format(acc) + ", AUC = " + "{:.5f}".format(auc))
+                      "{:.5f}".format(acc) + ", AUC = " + "{:.5f}".format(auc_out))
             if step % run_params["checkpoint_step"] == 0:
                 print("Checkpointing Model...")
                 retry_count = 0
