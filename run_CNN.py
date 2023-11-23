@@ -108,22 +108,23 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         cost, net_labels = cost_function(data_samp, net_out, **cost_params)
         cond_dist = tf.nn.sigmoid(net_out)
         auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist)
+        # Evaluate model
+        correct_pred = tf.equal(net_out, net_labels)
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
     elif not is_msl:  # single sound source localization
         cost, net_labels = cost_function(data_samp, net_out, **cost_params)
         cond_dist = tf.nn.softmax(net_out)
+        # Evaluate model
+        net_pred = tf.argmax(cond_dist, 1)
+        top_k = tf.nn.top_k(net_out, 5)
+        # correct predictions
+        correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
+        accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
     if net_params['regularizer'] is not None:
         cost = tf.add(cost, reg_term)
 
-    # Evaluate model
-    net_pred = tf.argmax(cond_dist, 1)
-    top_k = tf.nn.top_k(net_out, 5)
-    # correct predictions
-    correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
-    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
-
     # launch the model
-    is_testing = run_params['testing']
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
@@ -208,6 +209,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         sess.run(stim_iter.initializer)
         saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
         learning_curve = []
+        auc = []
         errors_count = 0
         step = 1
         try:
@@ -229,12 +231,11 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                     continue
                 if step % display_step == 0:
                     # Calculate batch loss and accuracy
-                    loss, acc, labels, auc_out = sess.run(
-                        [cost, accuracy, data_label['train/cnn_idx'], auc, update_op_auc])
-                    print("Batch Labels: ", labels)
+                    loss, acc, bl, auc_out, update_op_auc_out= sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
+                    print("Batch Labels: ", bl)
                     print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
                           "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                          "{:.5f}".format(acc) + ", AUC= " + "{:.5f}".format(auc))
+                          "{:.5f}".format(acc) + ", AUC= " + "{:.5f}".format(auc_out))
                 if step % run_params["checkpoint_step"] == 0:
                     print("Checkpointing Model...")
                     retry_count = 0
@@ -251,6 +252,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                             time.sleep(600)
                             retry_count += 1
                     learning_curve.append([int(step * batch_size), float(acc)])
+                    auc.append([int(step * batch_size), float(auc_out)])
                     print("Checkpoint Complete")
 
                 # Just for testing the model/call_model
@@ -268,8 +270,10 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             print("Total errors: ", errors_count)
             print("Training stopped.")
 
-        with open(newpath + '/learning_curve_retrained.json', 'w') as f:
+        with open(newpath + '/learning_curve.json', 'w') as f:
             json.dump(learning_curve, f)
+        with open(newpath + '/auc.json', 'w') as f:
+            json.dump(auc, f)
 
     # cleanup
     sess.close()

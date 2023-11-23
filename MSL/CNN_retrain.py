@@ -165,6 +165,7 @@ if not testing:
     sess.run(stim_iter.initializer)
     saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
     learning_curve = []
+    auc = []
     errors_count = 0
     step = 1
     try:
@@ -207,6 +208,7 @@ if not testing:
                         time.sleep(600)
                         retry_count += 1
                 learning_curve.append([int(step * batch_size), float(acc)])
+                auc.append([int(step * batch_size), float(auc_out)])
                 print("Checkpoint Complete")
 
             # Just for testing the model/call_model
@@ -224,8 +226,10 @@ if not testing:
         print("Total errors: ", errors_count)
         print("Training stopped.")
 
-    with open(newpath + '/learning_curve_retrained.json', 'w') as f:
+    with open(newpath + '/learning_curve.json', 'w') as f:
         json.dump(learning_curve, f)
+    with open(newpath + '/auc.json', 'w') as f:
+        json.dump(auc, f)
 
 # cleanup
 sess.close()
