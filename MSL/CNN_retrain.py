@@ -176,7 +176,7 @@ if not testing:
                 if step == 1:
                     # saver.restore(sess, model_weights)
                     freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
-                    sess.run(update_grads)  # TODO: key error cant parse serialized example.
+                    sess.run(update_grads)
                 else:
                     sess.run(update_grads)
             # sess.run(update_grads)
@@ -186,11 +186,11 @@ if not testing:
                 continue
             if step % display_step == 0:
                 # Calculate batch loss and accuracy
-                loss, acc, idx, auc_out = sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
-                # print("Batch Labels: ",az)
-                print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
-                      "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                      "{:.5f}".format(acc) + ", AUC= " + "{:.5f}".format(auc))
+                loss, acc, bl, auc_out = sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
+                print("Batch Labels: ", bl)
+                print("Iter " + str(step * batch_size) + ", Minibatch Loss = " + \
+                      "{:.6f}".format(loss) + ", Training Accuracy = " + \
+                      "{:.5f}".format(acc) + ", AUC = " + "{:.5f}".format(auc))
             if step % run_params["checkpoint_step"] == 0:
                 print("Checkpointing Model...")
                 retry_count = 0
