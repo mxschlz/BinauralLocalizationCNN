@@ -118,3 +118,7 @@ def replace_in_array(array, to_replace_val=None, replace_with_val=0):
             array[i] = replace_with_val  # Replace the value at index i with replace_with_val
 
     return array
+
+
+def decision_rule_msl(critetion=0.09):
+    pass
