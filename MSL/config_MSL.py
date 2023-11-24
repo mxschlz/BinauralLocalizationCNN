@@ -16,6 +16,6 @@ CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n
                                       'batch_size': 16,
                                       'testing': True,
                                       'model_version': ["10", "20", "30", "40", "50", "60", "70", "80", "90", "100",
-                                                        "110", "120", "130", "140", "150"]},
+                                                        "110", "120", "130", "140", "150", "160", "170"]},
                    DEFAULT_DATA_PARAM={}
                    )

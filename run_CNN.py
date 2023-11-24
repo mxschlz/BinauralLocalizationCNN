@@ -136,8 +136,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     # TODO: parallelization options decide how much memory is needed. 0 is too many.
     #  for testing use 1, but should try to see how many is optimal
     config = tf.ConfigProto(allow_soft_placement=True,
-                            inter_op_parallelism_threads=1,
-                            intra_op_parallelism_threads=1)
+                            inter_op_parallelism_threads=0,
+                            intra_op_parallelism_threads=0)
+    # config.gpu_options.allow_growth = True
     sess = tf.Session(config=config)
     sess.run(init_op)
 
@@ -208,8 +209,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         display_step = run_params["display_step"]
         sess.run(stim_iter.initializer)
         saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
-        learning_curve = []
-        auc = []
+        learning_curve_acc = []
+        learning_curve_auc = []
         errors_count = 0
         step = 1
         try:
@@ -231,11 +232,13 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                     continue
                 if step % display_step == 0:
                     # Calculate batch loss and accuracy
-                    loss, acc, bl, auc_out, update_op_auc_out= sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
+                    loss, acc, bl, auc_out, update_auc_out = sess.run([cost, accuracy, data_label['train/binary_label'],
+                                                                       auc, update_op_auc])
                     print("Batch Labels: ", bl)
-                    print("Iter " + str(step * batch_size) + ", Minibatch Loss= " + \
-                          "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                          "{:.5f}".format(acc) + ", AUC= " + "{:.5f}".format(auc_out))
+                    print(f"Iter {step * batch_size}, "
+                          f"Minibatch Loss = {loss}, "
+                          f"Training Accuracy = {acc},"
+                          f"AUC = {update_auc_out}")
                 if step % run_params["checkpoint_step"] == 0:
                     print("Checkpointing Model...")
                     retry_count = 0
@@ -251,8 +254,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                             print("Checkpointing failed. Retrying in 10 minutes...")
                             time.sleep(600)
                             retry_count += 1
-                    learning_curve.append([int(step * batch_size), float(acc)])
-                    auc.append([int(step * batch_size), float(auc_out)])
+                    learning_curve_acc.append([int(step * batch_size), float(acc)])
+                    learning_curve_auc.append([int(step * batch_size), float(update_auc_out)])
                     print("Checkpoint Complete")
 
                 # Just for testing the model/call_model
@@ -270,10 +273,10 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             print("Total errors: ", errors_count)
             print("Training stopped.")
 
-        with open(newpath + '/learning_curve.json', 'w') as f:
-            json.dump(learning_curve, f)
-        with open(newpath + '/auc.json', 'w') as f:
-            json.dump(auc, f)
+        with open(newpath + '/learning_curve_acc.json', 'w') as f:
+            json.dump(learning_curve_acc, f)
+        with open(newpath + '/learning_curve_auc.json', 'w') as f:
+            json.dump(learning_curve_auc, f)
 
     # cleanup
     sess.close()
@@ -285,7 +288,7 @@ if __name__ == '__main__':
     first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
     config_fname = 'config_array.npy'
     config_array = np.load(os.path.join(first_net_path, config_fname), allow_pickle=True)
-    stim_tfrecs = os.path.join('tfrecords', 'msl', "numjudge_*test.tfrecords")
+    stim_tfrecs = os.path.join("*test_azi*.tfrecords")
     res_name = os.path.join('Result', 'NumJudge_result')
     run_CNN(stim_tfrecs, first_net_path, res_name)
 
