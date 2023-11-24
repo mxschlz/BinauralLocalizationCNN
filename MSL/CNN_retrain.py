@@ -31,7 +31,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "*train_azi*.tfrecords"
+stim_tfrec_pattern = "*train*.tfrecords"
 stim_files = glob.glob(stim_tfrec_pattern)
 
 # load config array from trained network
@@ -164,8 +164,8 @@ if not testing:
     display_step = run_params["display_step"]
     sess.run(stim_iter.initializer)
     saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
-    learning_curve = []
-    auc = []
+    learning_curve_acc = []
+    learning_curve_auc = []
     errors_count = 0
     step = 1
     try:
@@ -187,11 +187,13 @@ if not testing:
                 continue
             if step % display_step == 0:
                 # Calculate batch loss and accuracy
-                loss, acc, bl, auc_out, update_op_auc_out = sess.run([cost, accuracy, data_label['train/binary_label'], auc, update_op_auc])
+                loss, acc, bl, auc_out, update_auc_out = sess.run([cost, accuracy, data_label['train/binary_label'],
+                                                                      auc, update_op_auc])
                 print("Batch Labels: ", bl)
-                print("Iter " + str(step * batch_size) + ", Minibatch Loss = " + \
-                      "{:.6f}".format(loss) + ", Training Accuracy = " + \
-                      "{:.5f}".format(acc) + ", AUC = " + "{:.5f}".format(auc_out))
+                print(f"Iter {step * batch_size}, "
+                      f"Minibatch Loss = {loss}, "
+                      f"Training Accuracy = {acc},"
+                      f"AUC = {update_auc_out}")
             if step % run_params["checkpoint_step"] == 0:
                 print("Checkpointing Model...")
                 retry_count = 0
@@ -207,8 +209,8 @@ if not testing:
                         print("Checkpointing failed. Retrying in 10 minutes...")
                         time.sleep(600)
                         retry_count += 1
-                learning_curve.append([int(step * batch_size), float(acc)])
-                auc.append([int(step * batch_size), float(auc_out)])
+                learning_curve_acc.append([int(step * batch_size), float(acc)])
+                learning_curve_auc.append([int(step * batch_size), float(update_auc_out)])
                 print("Checkpoint Complete")
 
             # Just for testing the model/call_model
@@ -226,10 +228,10 @@ if not testing:
         print("Total errors: ", errors_count)
         print("Training stopped.")
 
-    with open(newpath + '/learning_curve.json', 'w') as f:
-        json.dump(learning_curve, f)
-    with open(newpath + '/auc.json', 'w') as f:
-        json.dump(auc, f)
+    with open(newpath + '/learning_curve_acc.json', 'w') as f:
+        json.dump(learning_curve_acc, f)
+    with open(newpath + '/learning_curve_auc.json', 'w') as f:
+        json.dump(learning_curve_auc, f)
 
 # cleanup
 sess.close()
