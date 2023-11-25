@@ -120,5 +120,11 @@ def replace_in_array(array, to_replace_val=None, replace_with_val=0):
     return array
 
 
-def decision_rule_msl(critetion=0.09):
-    pass
+def decide_sound_presence(cond_dis, criterion=0.09):
+    n_sounds_present = list()
+    for cd in cond_dis:
+        max_prob = cond_dis.max()
+        rule = max_prob * criterion
+        true_idx = np.where(cd >= rule)
+        n_sounds_present.append(len(true_idx[0]))
+    return n_sounds_present
