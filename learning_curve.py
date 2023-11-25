@@ -64,3 +64,5 @@ data = get_learning_curve_json(root="netweights_MSL")
 sns.lineplot(x="iteration", y="accuracy", data=data, ax=ax[0])
 sns.lineplot(x="iteration", y="accuracy", data=data, hue="network", ax=ax[1])
 plt.show()
+
+print(f"Final Accuracy: {round(data.accuracy[np.where(data.iteration==2720)[0]].mean(), ndigits=2)}")
