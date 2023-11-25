@@ -5,11 +5,8 @@ import MSL.config_MSL as cfg
 
 stim_tfrecs = os.path.join("*train*.tfrecords")
 # trained net parameters
-for net in range(1, 11):
-    if net != 4 or 8:  # avoid oom
-        print(f"### START NETWORK {net} ###")
-        trainedNet = os.path.join('netweights', f'net{net}')
-        # run the model
-        run_CNN(stim_tfrec_pattern=stim_tfrecs, trainedNet_path=trainedNet, cfg=cfg.CONFIG_TRAIN)
-    else:
-        pass
+for net in [1,2,3,5,6,8,9,10]:
+    print(f"### START NETWORK {net} ###")
+    trainedNet = os.path.join('netweights', f'net{net}')
+    # run the model
+    run_CNN(stim_tfrec_pattern=stim_tfrecs, trainedNet_path=trainedNet, cfg=cfg.CONFIG_TRAIN)
