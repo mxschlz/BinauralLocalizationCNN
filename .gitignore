@@ -172,3 +172,4 @@ cython_debug/
 /numjudge_full_set_talkers_clear_train.tfrecords
 /logfiles/
 /MSL/msl_templare_mcdermott.py
+/MSL/tf_record_CNN_spherical_gradcheckpoint_valid_pad_multi_source_fc_finetune.py
