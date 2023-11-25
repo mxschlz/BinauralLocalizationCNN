@@ -12,7 +12,7 @@ import time
 from CNN_util import freeze_session
 import pdb
 import json
-
+from analysis_and_plotting.misc import decide_sound_presence
 
 # custom memory saving gradient
 import memory_saving_gradients
@@ -107,9 +107,12 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     if is_msl:  # multi source localization
         cost, net_labels = cost_function(data_samp, net_out, **cost_params)
         cond_dist = tf.nn.sigmoid(net_out)
-        auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist)
+        auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist, name='auc')
+        running_vars_auc = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES,
+                                             scope='auc')
+        running_vars_auc_initializer = tf.variables_initializer(var_list=running_vars_auc)
         # Evaluate model
-        correct_pred = tf.equal(net_out, net_labels)
+        correct_pred = tf.equal(tf.to_int64(net_out > 0.5), tf.cast(net_labels, tf.int64))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
     elif not is_msl:  # single sound source localization
         cost, net_labels = cost_function(data_samp, net_out, **cost_params)
@@ -125,10 +128,16 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         cost = tf.add(cost, reg_term)
 
     # launch the model
+    first_fc_idx = [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)].index('wc_fc_0:0')
+    late_layers = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[first_fc_idx:]
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
-                                              epsilon=1e-4).minimize(cost)
+        if is_msl:
+            update_grads = (tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],epsilon=1e-4)
+                            .minimize(cost,var_list=late_layers))
+        else:
+            update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
+                                                  epsilon=1e-4).minimize(cost)
 
     init_op = tf.group(tf.global_variables_initializer(),
                        tf.local_variables_initializer())
@@ -168,7 +177,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                 # running individual batches
                 try:
                     if is_msl:
-                        pred, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
+                        pd, cd, e_vars  = sess.run([correct_pred, cond_dist, eval_vars])
                     else:
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
                     # prepare result to write into .csv
@@ -191,6 +200,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     if not testing:
         # search for dense layer weights or posterior
         # all variables
+        """
         all_vars = list(set(v.op.name for v in tf.global_variables()).difference([]))
 
         # retrain variables
@@ -200,15 +210,16 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                 retrain_vars.append(weight)
             if weight.find("out") != -1:
                 retrain_vars.append(weight)
-
+        """
         # get variable list for restoring in saver
-        var_list = tf.contrib.framework.get_variables_to_restore(exclude=None)
+        # var_list = tf.contrib.framework.get_variables_to_restore(exclude=None)
         # model_weights = os.path.join(net_name, "model.ckpt-" + model_version[0])
         # ckpt = tf.train.load_checkpoint(model_weights)
         newpath = os.path.join(net_weights + "_MSL/" + net_name)
         display_step = run_params["display_step"]
         sess.run(stim_iter.initializer)
-        saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
+        # saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
+        saver = tf.train.Saver(max_to_keep=None)
         learning_curve_acc = []
         learning_curve_auc = []
         errors_count = 0
@@ -219,9 +230,10 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             while True:
                 # sess.run([optimizer,check_op])
                 try:
+                    sess.graph.finalize()
                     if step == 1:
                         # saver.restore(sess, model_weights)
-                        freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
+                        # freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                         sess.run(update_grads)
                     else:
                         sess.run(update_grads)
@@ -257,7 +269,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                     learning_curve_acc.append([int(step * batch_size), float(acc)])
                     learning_curve_auc.append([int(step * batch_size), float(update_auc_out)])
                     print("Checkpoint Complete")
-
+                    if is_msl:
+                        print("Resetting AUC counter")
+                        sess.run(running_vars_auc_initializer)
                 # Just for testing the model/call_model
                 if step == run_params["total_steps"]:
                     print("Break!")
