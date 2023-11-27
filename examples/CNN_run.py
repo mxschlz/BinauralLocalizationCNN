@@ -11,6 +11,7 @@ import numpy as np
 import time
 import json
 import pdb
+from analysis_and_plotting.misc import decide_sound_presence
 
 # custom memory saving gradient
 import memory_saving_gradients
@@ -32,7 +33,7 @@ gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
 
 
 # data paths
-stim_tfrec_pattern = "/home/max/PycharmProjects/BinauralLocalizationCNN/tfrecords/msl/locaaccu_noise_v.tfrecords"
+stim_tfrec_pattern = "*test_azi*"
 stim_files = glob.glob(stim_tfrec_pattern)
 save_name = os.path.join('Result', 'test')
 
@@ -53,7 +54,9 @@ run_params = {}
 ds_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_DATA_PARAM"], ds_params)
 net_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_NET_PARAM"], net_params)
 run_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_RUN_PARAM"], run_params)
-# cost_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_COST_PARAM"], cost_params)
+cost_params = update_param_dict(cfg.CONFIG_TEST["DEFAULT_COST_PARAM"], cost_params)
+
+is_msl = cost_params["multi_source_localization"]
 
 # build dataset iterator
 stim_files = glob.glob(stim_tfrec_pattern)
@@ -97,17 +100,25 @@ cost, net_labels = cost_function(data_samp, net_out, **cost_params)
 if net_params['regularizer'] is not None:
     cost = tf.add(cost, reg_term)
 
-# network outputs
-# network maximum-likelihood prediction
-cond_dist = tf.nn.softmax(net_out)
-net_pred = tf.argmax(cond_dist, 1)
-top_k = tf.nn.top_k(net_out, 5)
-# correct predictions
-correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
-accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+# get network cost and labels
+if is_msl:  # multi source localization
+    cost, net_labels = cost_function(data_samp, net_out, **cost_params)
+    cond_dist = tf.nn.sigmoid(net_out)
+    auc, update_op_auc = tf.metrics.auc(net_labels, cond_dist)
+    # Evaluate model
+    correct_pred = tf.equal(tf.to_int64(net_out > 0.5), tf.cast(net_labels, tf.int64))
+    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+elif not is_msl:  # single sound source localization
+    cost, net_labels = cost_function(data_samp, net_out, **cost_params)
+    cond_dist = tf.nn.softmax(net_out)
+    # Evaluate model
+    net_pred = tf.argmax(cond_dist, 1)
+    top_k = tf.nn.top_k(net_out, 5)
+    # correct predictions
+    correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
+    accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
 # launch the model
-is_testing = run_params['testing']
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 with tf.control_dependencies(update_ops):
     update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
@@ -150,9 +161,14 @@ for mv_num in model_version:
         while True:
             # running individual batches
             try:
-                pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
-                # prepare result to write into .csv
-                csv_rows = list(zip(pd, *e_vars))
+                if is_msl:
+                    pd, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
+                    n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
+                    csv_rows = list(zip(n_sounds_perceived, *e_vars))
+                else:
+                    pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
+                    # prepare result to write into .csv
+                    csv_rows = list(zip(pd, *e_vars))
                 # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
                 csv_writer.writerows(csv_rows)
             except tf.errors.ResourceExhaustedError:
