@@ -3,9 +3,9 @@ from run_CNN import run_CNN
 import MSL.config_MSL as cfg
 
 
-stim_tfrecs = os.path.join("*train*.tfrecords")
+stim_tfrecs = os.path.join("*train_azi*.tfrecords")
 # trained net parameters
-for net in [1,2,3,5,6,8,9,10]:
+for net in range(1, 2):
     print(f"### START NETWORK {net} ###")
     trainedNet = os.path.join('netweights', f'net{net}')
     # run the model

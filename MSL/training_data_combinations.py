@@ -15,8 +15,8 @@ import numpy as np
 n_talkers = 8
 n_countries = 13
 n_speakers = 7
-conditions = [2, 3, 4, 5, 6]
-n_reps = n_countries  # TODO: find proper value for this
+conditions = [1, 2, 3, 4, 5, 6, 7, 8]
+n_reps = 200  # TODO: find proper value for this
 combinations = list()  # save results
 
 
