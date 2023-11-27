@@ -1,64 +1,36 @@
 import tensorflow as tf
 import numpy as np
+from tfrecord_gen import append_records_v1, check_record
 
 
-def flip(x: tf.Tensor) -> tf.Tensor:
-    """Flip augmentation
-
-    Args:
-        x: Image to flip
-
-    Returns:
-        Augmented image
-    """
-    x = tf.image.random_flip_left_right(x)
-    x = tf.image.random_flip_up_down(x)
-
-    return x
+# Function to apply random horizontal flip
+def random_flip(image):
+    return tf.image.random_flip_left_right(image)
 
 
-def rotate(x: tf.Tensor) -> tf.Tensor:
-    """Rotation augmentation
-
-    Args:
-        x: Image
-
-    Returns:
-        Augmented image
-    """
-
-    return tf.image.rot90(x, tf.random_uniform(shape=[], minval=0, maxval=4, dtype=tf.int32))
+def random_gaussian_noise(image):
+    noise = tf.random.normal(shape=tf.shape(image), mean=0.0, stddev=0.1)
+    return tf.clip_by_value(image + noise, 0.0, 1.0)
 
 
-def zoom(x: tf.Tensor) -> tf.Tensor:
-    """Zoom augmentation
+def random_contrast(image):
+    return tf.image.random_contrast(image, lower=0.5, upper=1.5)
 
-    Args:
-        x: Image
 
-    Returns:
-        Augmented image
-    """
+def random_brightness(image):
+    return tf.image.random_brightness(image, max_delta=0.2)
 
-    # Generate 20 crop settings, ranging from a 1% to 20% crop.
-    scales = list(np.arange(0.8, 1.0, 0.01))
-    boxes = np.zeros((len(scales), 4))
 
-    for i, scale in enumerate(scales):
-        x1 = y1 = 0.5 - (0.5 * scale)
-        x2 = y2 = 0.5 + (0.5 * scale)
-        boxes[i] = [x1, y1, x2, y2]
+# Create a function to apply a random augmentation
+def apply_random_augmentation(image):
+    # Randomly choose an augmentation function to apply
+    augmentation_functions = [random_flip, random_gaussian_noise, random_brightness, random_contrast]
+    randint = np.random.randint(len(augmentation_functions))
 
-    def random_crop(img):
-        # Create different crops for an image
-        crops = tf.image.crop_and_resize([img], boxes=boxes, box_ind=np.zeros(len(scales)), crop_size=(32, 32))
-        # Return a random crop
-        return crops[tf.random_uniform(shape=[], minval=0, maxval=len(scales), dtype=tf.int32)]
+    # Apply the chosen augmentation function
+    image = augmentation_functions[randint](image)
 
-    choice = tf.random_uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
-
-    # Only apply cropping 50% of the time
-    return tf.cond(choice < 0.5, lambda: x, lambda: random_crop(x))
+    return image
 
 
 if __name__ == "__main__":
@@ -66,10 +38,9 @@ if __name__ == "__main__":
 
     import glob
     from CNN_util import get_feature_dict, build_tfrecords_iterator
-    import tensorflow as tf
 
     # training data path
-    train_data_path = "tfrecords/msl/*train.tfrecords"
+    train_data_path = "*train*.tfrecords"
     # get all files
     stim_files = glob.glob(train_data_path)
     # get feature dict
@@ -78,12 +49,10 @@ if __name__ == "__main__":
     stim_dset = build_tfrecords_iterator(train_data_path, stim_feature)
     stim_iter = stim_dset.make_initializable_iterator()
     data_samp = stim_iter.get_next()
+    image = data_samp["train/image"]
+    label = data_samp["train/binary_label"]
+    # Apply data augmentation to your dataset
+    random_func = apply_random_augmentation(image)
 
-    augmentations = [flip, zoom, rotate]
-
-    for f in augmentations:
-        dataset = data_samp.map(lambda x: tf.cond(tf.random_uniform([], 0, 1) > 0.75, lambda: f(x), lambda: x),
-                                num_parallel_calls=4)
-    dataset = stim_dset.map(lambda x: tf.clip_by_value(x, 0, 1))
-
-
+    orig_exp_total_sims = 75920
+    train_dset_size_current = 2700
