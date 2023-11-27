@@ -22,6 +22,7 @@ pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 6
 stim_n_reps = 1  # number of stimulus repetitions
 exp_n_reps = 700  # number of condition repetitions in the trial sequence
 n_countries = 13
+conditions = [2, 3, 4, 5, 6]
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 
 # get stims from original experiment
@@ -37,7 +38,7 @@ for talker in list(talkers_clear.keys()):
     for stim in talkers_clear[talker]:
         stimlist_clear[talker].append(stim)
 
-sequence = slab.Trialsequence(conditions=[2, 3, 4, 5, 6], n_reps=exp_n_reps)
+sequence = slab.Trialsequence(conditions=conditions, n_reps=exp_n_reps)
 talker_ids = list(stimlist_clear.keys())
 final_stims_ele = list()
 final_stims_azi = list()
@@ -88,8 +89,8 @@ for i, _ in enumerate(sequence):
 for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
     plane = "azi" if i == 0 else "ele"
     coords = pos_azim if plane == "azi" else pos_elev
-    train, test, val = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.1, val_split=0.1, shuffle=True)
-    for name, ds in zip(["train", "test", "validation"], [train, test, val]):
+    train, test, val = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
+    for name, ds in zip(["train", "test"], [train, test]):
 
         # preprocessing
         ds_final = process_stims(ds, coch_param=cochleagram_params)
