@@ -265,7 +265,7 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
         return cost, labels_batch_cost_sphere
 
 
-def get_dataset_partitions(ds, train_split=0.8, test_split=0.1, val_split=0.1, shuffle=True):
+def get_dataset_partitions(ds, train_split=0.8, test_split=0.2, shuffle=True):
     """
     Splits a dataset into training, testing, and validation partitions.
 
@@ -281,7 +281,7 @@ def get_dataset_partitions(ds, train_split=0.8, test_split=0.1, val_split=0.1, s
     """
 
     # Ensure that the sum of splits is equal to 1
-    assert (train_split + test_split + val_split) == 1
+    assert (train_split + test_split) == 1
 
     # Shuffle the dataset if specified
     if shuffle:
@@ -291,14 +291,12 @@ def get_dataset_partitions(ds, train_split=0.8, test_split=0.1, val_split=0.1, s
     ds_size = len(ds)
     train_size = int(train_split * ds_size)
     test_size = int(test_split * ds_size)
-    val_size = int(val_split * ds_size)
 
     # Partition the dataset
     train_ds = ds[:train_size]
     test_ds = ds[train_size:train_size+test_size]
-    val_ds = ds[train_size+test_size:train_size+val_size+test_size]
 
-    return train_ds, test_ds, val_ds
+    return train_ds, test_ds
 
 
 def freeze_session(session, keep_var_names=None, output_names=None, clear_devices=True):
