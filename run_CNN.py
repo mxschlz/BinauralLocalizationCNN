@@ -9,10 +9,10 @@ import collections
 import csv
 from copy import deepcopy
 import time
-from CNN_util import freeze_session
+# from CNN_util import freeze_session
 import pdb
 import json
-from analysis_and_plotting.misc import decide_sound_presence
+from analysis_and_plotting.decision_rule import decide_sound_presence
 
 # custom memory saving gradient
 import memory_saving_gradients
@@ -177,11 +177,12 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                 # running individual batches
                 try:
                     if is_msl:
-                        pd, cd, e_vars  = sess.run([correct_pred, cond_dist, eval_vars])
+                        pd, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
+                        n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
                     else:
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
                     # prepare result to write into .csv
-                    csv_rows = list(zip(pd, *e_vars))
+                    csv_rows = list(zip(n_sounds_perceived, *e_vars))
                     # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
                     print("Writing data to file ...")
                     csv_writer.writerows(csv_rows)
@@ -224,6 +225,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         learning_curve_auc = []
         errors_count = 0
         step = 1
+        mv_num = model_version[0]
         try:
             # sess.graph.finalize()
             # sess.run(partially_frozen)
@@ -232,7 +234,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                 try:
                     sess.graph.finalize()
                     if step == 1:
-                        # saver.restore(sess, model_weights)
+                        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
                         # freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                         sess.run(update_grads)
                     else:
