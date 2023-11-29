@@ -1,6 +1,5 @@
 import tensorflow as tf
 import numpy as np
-from tfrecord_gen import append_records_v1, check_record
 
 
 # Function to apply random horizontal flip
@@ -29,7 +28,7 @@ def apply_random_augmentation(image):
 
     # Apply the chosen augmentation function
     image = augmentation_functions[randint](image)
-
+    print(f"Applying Augmentation Operation: {augmentation_functions[randint]}")
     return image
 
 
@@ -52,7 +51,4 @@ if __name__ == "__main__":
     image = data_samp["train/image"]
     label = data_samp["train/binary_label"]
     # Apply data augmentation to your dataset
-    random_func = apply_random_augmentation(image)
-
-    orig_exp_total_sims = 75920
-    train_dset_size_current = 2700
+    data = random_flip(image)
