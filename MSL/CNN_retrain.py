@@ -16,6 +16,7 @@ import memory_saving_gradients
 from tensorflow.python.ops import gradients
 from run_CNN import update_param_dict
 from MSL.config_MSL import CONFIG_TRAIN as cfg
+from augment import *
 # import mem_util
 
 # this controls CUDA convolution optimization
@@ -163,20 +164,36 @@ if not testing:
     newpath = trainedNets_path + "_MSL/" + net_name
     display_step = run_params["display_step"]
     sess.run(stim_iter.initializer)
-    saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
+    saver = tf.train.Saver(max_to_keep=None)
     learning_curve_acc = []
     learning_curve_auc = []
     errors_count = 0
     step = 1
     try:
-        # sess.graph.finalize()
+        sess.graph.finalize()
         # sess.run(partially_frozen)
         while True:
             # sess.run([optimizer,check_op])
             try:
                 if step == 1:
+                    files = os.listdir(newpath)
+                    checkpoint_files = []
+                    for file in files:
+                        if (file.split("/")[-1]).split(".")[0] == 'model':
+                            checkpoint_files.append(os.path.join(newpath, file))
+                    latest_addition = max(checkpoint_files, key=os.path.getctime)
+                    # Ensure there is at least one checkpoint file before accessing its name
+                    if checkpoint_files:
+                        latest_addition_name = latest_addition.split(".")[-2]
+                        saver.restore(sess, newpath + "/model." + latest_addition_name)
+                        step = int(latest_addition_name.split("-")[1])
+                        learning_curve_auc = json.load(open(glob.glob(os.path.join(newpath, "*auc*"))[0]))
+                        learning_curve_acc = json.load(open(glob.glob(os.path.join(newpath, "*acc*"))[0]))
+                    else:
+                        print("No checkpoint files found in the directory.")
+
                     # saver.restore(sess, model_weights)
-                    freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
+                    # freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                     sess.run(update_grads)
                 else:
                     sess.run(update_grads)
