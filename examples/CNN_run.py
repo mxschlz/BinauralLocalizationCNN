@@ -11,7 +11,7 @@ import numpy as np
 import time
 import json
 import pdb
-from analysis_and_plotting.misc import decide_sound_presence
+from analysis_and_plotting.decision_rule import decide_sound_presence
 
 # custom memory saving gradient
 import memory_saving_gradients
@@ -118,11 +118,20 @@ elif not is_msl:  # single sound source localization
     correct_pred = tf.equal(tf.argmax(net_out, 1), tf.cast(net_labels, tf.int64))
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
+first_fc_idx = [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)].index('wc_fc_0:0')
+late_layers = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[first_fc_idx:]
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
 # launch the model
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 with tf.control_dependencies(update_ops):
-    update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
-                                          epsilon=1e-4).minimize(cost)
+    if is_msl:
+        update_grads = (tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'], epsilon=1e-4)
+                        .minimize(cost, var_list=late_layers))
+    else:
+        update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
+                                              epsilon=1e-4).minimize(cost)
+
 
 init_op = tf.group(tf.global_variables_initializer(),
                    tf.local_variables_initializer())
@@ -152,6 +161,7 @@ for mv_num in model_version:
         saver.restore(sess, os.path.join(curr_net, "model.ckpt-" + str(mv_num)))  # restore weights and biases
 
         header = ['model_pred'] + eval_keys
+        header.pop(1)
         # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
         csv_path = "{}_model_{}_{}.csv".format(save_name, net_name, mv_num)
         csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
