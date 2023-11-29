@@ -89,7 +89,7 @@ for i, _ in enumerate(sequence):
 for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
     plane = "azi" if i == 0 else "ele"
     coords = pos_azim if plane == "azi" else pos_elev
-    train, test, val = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
+    train, test = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
     for name, ds in zip(["train", "test"], [train, test]):
 
         # preprocessing
