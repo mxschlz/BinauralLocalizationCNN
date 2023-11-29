@@ -13,6 +13,7 @@ import time
 import pdb
 import json
 from analysis_and_plotting.decision_rule import decide_sound_presence
+from augment import apply_random_augmentation
 
 # custom memory saving gradient
 import memory_saving_gradients
@@ -67,15 +68,15 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     stim_files = glob.glob(stim_tfrec_pattern)
     stim_feature = get_feature_dict(stim_files[0])
     stim_dset = build_tfrecords_iterator(stim_tfrec_pattern, stim_feature, **ds_params)
-
     is_msl = cfg["DEFAULT_COST_PARAM"]["multi_source_localization"]
     # from the stim_dset, create a batched data iterator
     batch_size = run_params['batch_size']
     batch_size_tf = tf.constant(batch_size, dtype=tf.int64)
-    stim_dset = stim_dset.shuffle(buffer_size=batch_size). \
-        batch(batch_size=batch_size_tf, drop_remainder=True)
+    stim_dset = stim_dset.shuffle(buffer_size=batch_size).batch(batch_size=batch_size_tf, drop_remainder=True)
     stim_iter = stim_dset.make_initializable_iterator()
     data_samp = stim_iter.get_next()
+    if "augment" in ds_params:
+        data_samp["train/image"] = apply_random_augmentation(data_samp["train/image"])
     # get a data label dict from the data sample
     data_label = collections.OrderedDict()
     for k, v in data_samp.items():
@@ -167,8 +168,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
 
             header = ['model_pred'] + eval_keys
+            header.pop(1)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
             # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
-            csv_path = "{}_model_{}_{}.csv".format(save_name, net_name, mv_num)
+            csv_path = f"{save_name}_{net_name}_model_{mv_num}.csv"
             csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
             csv_writer = csv.writer(csv_handle)
             csv_writer.writerow(header)
@@ -178,6 +180,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                 try:
                     if is_msl:
                         pd, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
+                        e_vars.pop(0)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COLUMN
                         n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
                     else:
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
@@ -227,14 +230,28 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         step = 1
         mv_num = model_version[0]
         try:
-            # sess.graph.finalize()
+            sess.graph.finalize()
             # sess.run(partially_frozen)
             while True:
                 # sess.run([optimizer,check_op])
                 try:
-                    sess.graph.finalize()
                     if step == 1:
-                        saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
+                        files = os.listdir(newpath)
+                        checkpoint_files = []
+                        for file in files:
+                            if (file.split("/")[-1]).split(".")[0] == 'model':
+                                checkpoint_files.append(os.path.join(newpath, file))
+                        # Ensure there is at least one checkpoint file before accessing its name
+                        if checkpoint_files.__len__():
+                            latest_addition = max(checkpoint_files, key=os.path.getctime)
+                            latest_addition_name = latest_addition.split(".")[-2]
+                            saver.restore(sess, newpath + "/model." + latest_addition_name)
+                            step = int(latest_addition_name.split("-")[1])
+                            learning_curve_auc = json.load(open(glob.glob(os.path.join(newpath, "*auc*"))[0]))
+                            learning_curve_acc = json.load(open(glob.glob(os.path.join(newpath, "*acc*"))[0]))
+                        else:
+                            print("No checkpoint files found in the directory.")
+                            saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
                         # freeze_session(sess, keep_var_names=retrain_vars)  # freeze all layers prior to dense layer
                         sess.run(update_grads)
                     else:
@@ -253,6 +270,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                           f"Minibatch Loss = {loss}, "
                           f"Training Accuracy = {acc},"
                           f"AUC = {update_auc_out}")
+                    learning_curve_acc.append([int(step * batch_size), float(acc)])
+                    learning_curve_auc.append([int(step * batch_size), float(update_auc_out)])
                 if step % run_params["checkpoint_step"] == 0:
                     print("Checkpointing Model...")
                     retry_count = 0
@@ -268,8 +287,6 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                             print("Checkpointing failed. Retrying in 10 minutes...")
                             time.sleep(600)
                             retry_count += 1
-                    learning_curve_acc.append([int(step * batch_size), float(acc)])
-                    learning_curve_auc.append([int(step * batch_size), float(update_auc_out)])
                     print("Checkpoint Complete")
                     if is_msl:
                         print("Resetting AUC counter")
@@ -278,8 +295,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                 if step == run_params["total_steps"]:
                     print("Break!")
                     break
-                step += 1
                 print(f"Current step: {step}")
+                step += 1
         except tf.errors.OutOfRangeError:
             print("Out of Range Error. Optimization Finished")
         except tf.errors.DataLossError as e:
@@ -299,6 +316,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     tf.reset_default_graph()
 
 
+
 if __name__ == '__main__':
     netweights_path = "/home/max/PycharmProjects/BinauralLocalizationCNN/netweights_MSL/"
     first_net_path = os.path.join(netweights_path, sorted(os.listdir(netweights_path))[0])
@@ -307,4 +325,5 @@ if __name__ == '__main__':
     stim_tfrecs = os.path.join("*test_azi*.tfrecords")
     res_name = os.path.join('Result', 'NumJudge_result')
     run_CNN(stim_tfrecs, first_net_path, res_name)
+
 
