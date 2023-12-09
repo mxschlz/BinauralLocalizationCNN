@@ -82,7 +82,7 @@ def loc_to_CNNpos(azim, elev, elev_range=(0, 60), bin_size=5):
     if elev < elev_range[0] or elev > elev_range[1]:
         raise ValueError("elevation angle: {} out of valid range: {}".
                          format(elev, elev_range))
-
+    # TODO: maybe multiply by 36 instead of 72?
     return int(elev / 2 / bin_size) * int(360 / bin_size) + int(azim / bin_size)
 
 
