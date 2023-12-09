@@ -5,6 +5,9 @@ from MSL.config_MSL import CONFIG_TEST as cfg
 # MSL
 stim_tfrecs = os.path.join("numjudge_*test_azi*.tfrecords")
 plane = stim_tfrecs.split("_")[-1].split("*")[0]
+cfg["DEFAULT_RUN_PARAM"]["testing"] = True
+cfg["DEFAULT_RUN_PARAM"]["training"] = False
+cfg["DEFAULT_RUN_PARAM"]["validating"] = False
 
 # trained net parameters
 for net in range(1, 11):

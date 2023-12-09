@@ -3,6 +3,7 @@ CONFIG_TRAIN = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "
                     DEFAULT_RUN_PARAM={'learning_rate': 1e-3,
                                        'batch_size': 16,
                                        'testing': False,
+                                       "training": True,
                                        'model_version': ['100000'],  # orig model weights
                                        "display_step": 25,
                                        "total_steps": 1500,
