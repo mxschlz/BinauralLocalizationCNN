@@ -9,3 +9,7 @@ def decide_sound_presence(cond_dis, criterion=0.09):
         true_idx = np.where(cd >= rule)
         n_sounds_present.append(len(true_idx[0]))
     return n_sounds_present
+
+
+if __name__ == "__main__":
+    pass

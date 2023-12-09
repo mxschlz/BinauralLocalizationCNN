@@ -42,7 +42,7 @@ def get_learning_curve_json(root, type="auc"):
             accuracy = content[:, 1]
 
             # Create a DataFrame for the current network
-            network_df = pd.DataFrame({'iteration': iterations, 'accuracy': accuracy})
+            network_df = pd.DataFrame({'step': iterations, 'accuracy': accuracy})
 
             # Add the network name as a new column in the DataFrame
             network_df['network'] = d
@@ -61,8 +61,8 @@ def get_learning_curve_json(root, type="auc"):
 
 fig, ax = plt.subplots(1, 2, sharex=True, sharey=True)
 data = get_learning_curve_json(root="netweights_MSL")
-sns.lineplot(x="iteration", y="accuracy", data=data, ax=ax[0])
-sns.lineplot(x="iteration", y="accuracy", data=data, hue="network", ax=ax[1])
+sns.lineplot(x="step", y="accuracy", data=data, ax=ax[0])
+sns.lineplot(x="step", y="accuracy", data=data, hue="network", ax=ax[1])
 plt.show()
 
-print(f"Final Accuracy: {round(data.accuracy[np.where(data.iteration==2720)[0]].mean(), ndigits=2)}")
+# print(f"Final Accuracy: {round(data.accuracy[np.where(data.iteration==2720)[0]].mean(), ndigits=2)}")

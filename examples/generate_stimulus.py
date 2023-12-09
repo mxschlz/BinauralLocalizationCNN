@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from stim_gen import augment_from_wav, augment_from_array, pick_hrtf_by_loc, KEMAR_HRTF
 
-data_path = os.path.join("examples", 'test')
+data_path = os.path.join("examples", 'stimuli')
 wav_ori = 'test.wav'
 wf = os.path.join(data_path, wav_ori)
-sf, sig_ori = slab.read(wf)
+sound = slab.Sound.read(wf)
+sig_ori, sf = sound.data, sound.samplerate
 # just need a single channel for the room simulation
 sig_ori = sig_ori[:, 0] / np.max(sig_ori)
 
@@ -58,3 +59,4 @@ for ct, loc in enumerate(hrtf_loc_idx):
     ax[ct + 1][1].set_ylabel('Amplitude')
 
 plt.tight_layout()
+plt.show()
