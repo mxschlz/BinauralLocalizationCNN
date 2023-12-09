@@ -108,6 +108,7 @@ if is_msl:  # multi source localization
     # Evaluate model
     correct_pred = tf.equal(tf.to_int64(net_out > 0.5), tf.cast(net_labels, tf.int64))
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+    top_k = tf.nn.top_k(net_out, 5)
 elif not is_msl:  # single sound source localization
     cost, net_labels = cost_function(data_samp, net_out, **cost_params)
     cond_dist = tf.nn.softmax(net_out)
