@@ -75,14 +75,19 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     stim_dset = stim_dset.shuffle(buffer_size=batch_size).batch(batch_size=batch_size_tf, drop_remainder=True)
     stim_iter = stim_dset.make_initializable_iterator()
     data_samp = stim_iter.get_next()
-    if "augment" in ds_params:
-        data_samp["train/image"] = apply_random_augmentation(data_samp["train/image"])
+
     # get a data label dict from the data sample
     data_label = collections.OrderedDict()
     for k, v in data_samp.items():
         if k not in ('train/image', 'train/image_height', 'train/image_width'):
             data_label[k] = data_samp[k]
-
+    if "augment" in ds_params:
+        data_samp["train/image"] = apply_random_augmentation(data_samp["train/image"])
+    # if run validation or not
+    if run_params["run_val"]:
+        run_val = True
+    else:
+        run_val = False
     # build the CNN net
     # load config array from trained network
     net_weights, net_name = os.path.split(trainedNet_path)
@@ -112,6 +117,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         running_vars_auc = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES,
                                              scope='auc')
         running_vars_auc_initializer = tf.variables_initializer(var_list=running_vars_auc)
+        top_k = tf.nn.top_k(net_out, 5)
         # Evaluate model
         correct_pred = tf.equal(tf.to_int64(net_out > 0.5), tf.cast(net_labels, tf.int64))
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
@@ -166,41 +172,62 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             print("Starting model version: ", mv_num)
             saver = tf.train.Saver(max_to_keep=None)
             saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
+            if run_val:
+                # run augmented test set for model validation
+                auc_results = dict()
+                auc_results[mv_num] = []
+                while True:
+                    try:
+                        # Calculate batch loss and accuracy
+                        loss, acc, auc_out, update_auc_out = sess.run([cost, accuracy, auc, update_op_auc])
+                        auc_results[mv_num].append(update_auc_out)
+                        print(f"AUC = {update_auc_out}")
+                    except tf.errors.OutOfRangeError:
+                        print('Dataset finished')
+                        break
+                    finally:
+                        pass
 
-            header = ['model_pred'] + eval_keys
-            header.pop(1)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
-            # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
-            csv_path = f"{save_name}_{net_name}_model_{mv_num}.csv"
-            csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
-            csv_writer = csv.writer(csv_handle)
-            csv_writer.writerow(header)
+            else:
+                header = ['model_pred'] + eval_keys
+                header.pop(1)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
+                # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
+                csv_path = f"{save_name}_{net_name}_model_{mv_num}.csv"
+                csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
+                csv_writer = csv.writer(csv_handle)
+                csv_writer.writerow(header)
+                data = list()
+                npy_path = f"{save_name}_{net_name}_model_{mv_num}_cd.npy"
+                while True:
+                    # running individual batches
+                    try:
+                        if is_msl:
+                            pd, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
+                            e_vars.pop(0)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COLUMN
+                            n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
+                        else:
+                            pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
+                        data.append(cd)
+                        # prepare result to write into .csv
+                        csv_rows = list(zip(n_sounds_perceived, *e_vars))
+                        # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
+                        print("Writing data to file ...")
+                        csv_writer.writerows(csv_rows)
+                    except tf.errors.ResourceExhaustedError:
+                        print("Out of memory error")
+                        break
+                    except tf.errors.OutOfRangeError:
+                        print('Dataset finished')
+                        break
 
-            while True:
-                # running individual batches
-                try:
-                    if is_msl:
-                        pd, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
-                        e_vars.pop(0)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COLUMN
-                        n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
-                    else:
-                        pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
-                    # prepare result to write into .csv
-                    csv_rows = list(zip(n_sounds_perceived, *e_vars))
-                    # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
-                    print("Writing data to file ...")
-                    csv_writer.writerows(csv_rows)
-                except tf.errors.ResourceExhaustedError:
-                    print("Out of memory error")
-                    break
-                except tf.errors.OutOfRangeError:
-                    print('Dataset finished')
-                    break
-
-                finally:
-                    pass
-
-            # close the csv file
-            csv_handle.close()
+                    finally:
+                        pass
+                np.save(npy_path, np.array(data))
+                # close the csv file
+                csv_handle.close()
+        if run_val:
+            npy_path_auc = f"{save_name}_{net_name}_model_{mv_num}_val_auc.npy"
+            np.save(npy_path_auc, auc_results)
     if not testing:
         # search for dense layer weights or posterior
         # all variables
@@ -211,7 +238,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         retrain_vars = list()
         for weight in all_vars:
             if weight.find("fc") != -1:
-                retrain_vars.append(weight)
+                retrain_varauc_resultss.append(weight)
             if weight.find("out") != -1:
                 retrain_vars.append(weight)
         """
@@ -270,8 +297,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                           f"Minibatch Loss = {loss}, "
                           f"Training Accuracy = {acc},"
                           f"AUC = {update_auc_out}")
-                    learning_curve_acc.append([int(step * batch_size), float(acc)])
-                    learning_curve_auc.append([int(step * batch_size), float(update_auc_out)])
+                    learning_curve_acc.append([int(step), float(acc)])
+                    learning_curve_auc.append([int(step), float(update_auc_out)])
                 if step % run_params["checkpoint_step"] == 0:
                     print("Checkpointing Model...")
                     retry_count = 0
@@ -314,7 +341,6 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     # cleanup
     sess.close()
     tf.reset_default_graph()
-
 
 
 if __name__ == '__main__':
