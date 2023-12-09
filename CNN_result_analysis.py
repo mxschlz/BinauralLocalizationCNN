@@ -12,7 +12,7 @@ from copy import deepcopy
 from scipy import stats as sstats
 
 
-def read_resfiles(file_pattern, extra_lbs=None):
+def read_resfiles(file_pattern, filetype="csv", extra_lbs=None):
     """
     read result files generated from the CNN model
     :param file_pattern: regrexp pattern to look for result files
@@ -27,21 +27,28 @@ def read_resfiles(file_pattern, extra_lbs=None):
     if extra_lbs is not None:
         assert len(files) == len(extra_lbs), "number of labels must match number of files"
 
-    # read header
-    with open(files[0], newline='') as csvfile:
-        csv_rd = csv.reader(csvfile)
-        header = next(csv_rd)
+    if filetype == "csv":
+        # read header
+        with open(files[0], newline='') as csvfile:
+            csv_rd = csv.reader(csvfile)
+            header = next(csv_rd)
 
-    # read data
-    for idx, f in enumerate(files):
-        fdata = np.genfromtxt(f, delimiter=',')[1:]
-        if extra_lbs is not None:
-            # add extra label into the data
-            lb_array = extra_lbs[idx] * np.ones((fdata.shape[0], 1))
-            fdata = np.concatenate([fdata, lb_array], axis=1)
-        data.append(fdata)
+        # read data
+        for idx, f in enumerate(files):
+            fdata = np.genfromtxt(f, delimiter=',')[1:]
+            if extra_lbs is not None:
+                # add extra label into the data
+                lb_array = extra_lbs[idx] * np.ones((fdata.shape[0], 1))
+                fdata = np.concatenate([fdata, lb_array], axis=1)
+            data.append(fdata)
 
-    return header, data
+        return header, data
+
+    elif filetype == "npy":
+        for idx, f in enumerate(files):
+            fdata = np.load(f, allow_pickle=True)
+            data.append(fdata)
+        return data
 
 
 def CNNpos_to_loc(CNN_pos, bin_size=5):
@@ -55,10 +62,6 @@ def CNNpos_to_loc(CNN_pos, bin_size=5):
     bin_idx = divmod(CNN_pos, n_azim)
 
     return bin_size * bin_idx[1], bin_size * 2 * bin_idx[0]
-
-
-def CNNpos_to_n_sounds(CNN_pos):
-    return [x+2 for x in CNN_pos]
 
 
 def result_figure1(model_data_patt, human_data_path):
@@ -321,9 +324,11 @@ def result_figure4(model_data_patt):
     loc_act = CNNpos_to_loc(data[:, col_act])[1]  # convert bin to azi, ele positions
     loc_pred = CNNpos_to_loc(data[:, col_pred])[1]
 
+
 if __name__ == '__main__':
     import scipy
-    model_data_patt = "/home/max/Projects/BinauralLocalizationCNN/Result/SL_unmodified_ears*"
+    results_root = "Result"
+    model_data_patt = os.path.join(results_root, "*_azi*model_333.csv")
     header, data = read_resfiles(model_data_patt)  # read results file
     data = np.concatenate(data, axis=0)  # concatenate data
 
