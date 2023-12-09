@@ -1,4 +1,3 @@
-import stim_util
 from stim_gen import *
 import pickle
 from CNN_preproc import process_stims
@@ -14,6 +13,7 @@ import slab
 # Afterwards, add everything together.
 samplerate = 44100  # initial samplerate for CNN
 goal_duration = 2.0  # CNN processing goal duration
+goal_level = 70  # I think this is the level as proposed in the francl paper
 
 # simulate experiment sequence by rendering and adding sounds to create a complex multi-source environment
 # render the sound
@@ -22,8 +22,8 @@ pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 6
 stim_n_reps = 1  # number of stimulus repetitions
 exp_n_reps = 700  # number of condition repetitions in the trial sequence
 n_countries = 13
-conditions = [2, 3, 4, 5, 6]
-cochleagram_params = dict(sliced=True, minimum_padding=0.45)
+conditions = [1, 2, 3, 4, 5, 6]
+cochleagram_params = dict(sliced=True, minimum_padding=0.35)
 
 # get stims from original experiment
 talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
@@ -36,12 +36,14 @@ for talker in list(talkers_clear.keys()):
     stimlist_clear[talker] = list()
 
     for stim in talkers_clear[talker]:
+        # stim = stim.resample(samplerate)
         stimlist_clear[talker].append(stim)
 
 sequence = slab.Trialsequence(conditions=conditions, n_reps=exp_n_reps)
 talker_ids = list(stimlist_clear.keys())
 final_stims_ele = list()
 final_stims_azi = list()
+
 
 for i, _ in enumerate(sequence):
 
@@ -61,6 +63,7 @@ for i, _ in enumerate(sequence):
         binary_label[stim[0]["label"]["cnn_idx"]] = 1
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, type="front", goal_duration=goal_duration)
+    sound.level = [goal_level, goal_level]
     # show_subbands(sound)
     final_stims_azi.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
                                                          "hrtf_idx": 0, "binary_label": binary_label}})
@@ -77,6 +80,7 @@ for i, _ in enumerate(sequence):
         binary_label[stim[0]["label"]["cnn_idx"]] = 1
         sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(len(sound))
     sound = zero_padding(sound, type="front", goal_duration=goal_duration)
+    sound.level = [goal_level, goal_level]
 
     final_stims_ele.append({"sig": sound.data, "label": {"n_sounds": n_sounds, "sampling_rate": samplerate,
                                                          "hrtf_idx": 0, "binary_label": binary_label}})
