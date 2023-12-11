@@ -1,4 +1,4 @@
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
+from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function, filter_sparse_to_dense
 from NetBuilder import NetBuilder
 
 import os
@@ -193,27 +193,33 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             saver = tf.train.Saver(max_to_keep=None)
             saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
             header = ['model_pred'] + eval_keys
-            header.pop(1)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
             # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
+            bin_label_idx = header.index("train/binary_label")
+            header.pop(bin_label_idx)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
             csv_path = f"{save_name}_{net_name}_model_{mv_num}.csv"
             csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
             csv_writer = csv.writer(csv_handle)
             csv_writer.writerow(header)
-            data = list()
-            npy_path = f"{save_name}_{net_name}_model_{mv_num}_cd.npy"
+            cd_data = list()
+            binary_label_data = list()
+            cd_path = f"{save_name}_{net_name}_model_{mv_num}_cd.npy"
+            binary_label_path = f"{save_name}_{net_name}_model_{mv_num}_binary_labels.npy"
             while True:
                 # running individual batches
                 try:
                     if is_msl:
                         pd, cd, e_vars = sess.run([correct_pred, cond_dist, eval_vars])
-                        e_vars.pop(0)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COLUMN
+                        # e_vars = filter_sparse_to_dense(eval_vars)
+                        binary_label = e_vars.pop(0)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COLUMN
                         n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
                     else:
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
-                    data.append(cd)
+                    cd_data.append(cd)
+                    binary_label_data.append(binary_label)
+
                     # prepare result to write into .csv
                     csv_rows = list(zip(n_sounds_perceived, *e_vars))
-                    # csv_rows = list(zip(pd, *e_vars, cd.tolist()))
+                    # csv_rows = list(zip(n_sounds_perceived, *e_vars, cd.tolist()))
                     print("Writing data to file ...")
                     csv_writer.writerows(csv_rows)
                 except tf.errors.ResourceExhaustedError:
@@ -225,7 +231,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
 
                 finally:
                     pass
-            np.save(npy_path, np.array(data))
+            np.save(cd_path, np.array(cd_data))
+            np.save(binary_label_path, np.array(binary_label_data))
+
             # close the csv file
             csv_handle.close()
     elif training:
