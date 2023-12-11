@@ -1,7 +1,7 @@
 import collections
 import csv
 
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
+from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function, filter_sparse_to_dense
 from NetBuilder import NetBuilder
 
 import os
@@ -162,7 +162,8 @@ for mv_num in model_version:
         saver.restore(sess, os.path.join(curr_net, "model.ckpt-" + str(mv_num)))  # restore weights and biases
 
         header = ['model_pred'] + eval_keys
-        header.pop(1)
+        bin_label_idx = header.index("train/binary_label")
+        header.pop(bin_label_idx)
         # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
         csv_path = "{}_model_{}_{}.csv".format(save_name, net_name, mv_num)
         csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')

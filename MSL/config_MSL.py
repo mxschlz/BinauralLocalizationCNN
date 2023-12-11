@@ -6,7 +6,7 @@ CONFIG_TRAIN = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "
                                        "training": True,
                                        'model_version': ['100000'],  # orig model weights
                                        "display_step": 25,
-                                       "total_steps": 1500,
+                                       "total_steps": 2000,
                                        "checkpoint_step": 100},
                     DEFAULT_DATA_PARAM={"augment": True}
                     )

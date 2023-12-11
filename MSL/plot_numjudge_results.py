@@ -26,9 +26,9 @@ for model in models:
     n_pred = csv[:, col_pred]
 
     # get cond_dist from all nets
-    npy_patt = os.path.join(results_root, f"*_azi*model_{model}_*.npy")
+    npy_patt = os.path.join(results_root, f"*_azi*model_{model}_cd*.npy")
     npy = read_resfiles(npy_patt, filetype="npy")
-    npy = np.concatenate(npy, axis=0)
+    npy = np.concatenate(npy, axis=1)
     crit_range = np.linspace(0, 1, 11)
     # for crit_val in crit_range:
     to_plot = list()
@@ -38,10 +38,11 @@ for model in models:
         act = n_act[idx_start:idx_start+len(n_sounds_perceived)].tolist()
         idx_start += len(n_sounds_perceived)
         to_plot.append([act, n_sounds_perceived])
-    to_plot = np.array(to_plot).transpose(0, 2, 1).reshape((8320, 2))
+    to_plot = np.array(to_plot)
+    to_plot = to_plot.transpose(0, 2, 1).reshape((4960, 2))
 
-    sns.lineplot(x=n_act, y=n_pred, err_style="bars")
-    # sns.lineplot(x=to_plot[:, 0], y=to_plot[:, 1], err_style="bars")
+    # sns.lineplot(x=n_act, y=n_pred, err_style="bars")
+    sns.lineplot(x=to_plot[:, 0], y=to_plot[:, 1], err_style="bars")
     # plt.xlim([1, 6])
     # plt.ylim([1, 6])
     plt.plot(plt.xlim(), plt.ylim(), ls="--", c=".3")

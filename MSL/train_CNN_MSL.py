@@ -6,9 +6,9 @@ import MSL.config_MSL as cfg
 stim_tfrecs = os.path.join("*train_azi*.tfrecords")
 total_retries = (cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["total_steps"] /
                  cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["checkpoint_step"])
-cfg["DEFAULT_RUN_PARAM"]["testing"] = False
-cfg["DEFAULT_RUN_PARAM"]["training"] = True
-cfg["DEFAULT_RUN_PARAM"]["validating"] = False
+cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["testing"] = False
+cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["training"] = True
+cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["validating"] = False
 
 # trained net parameters
 for net in range(1, 11):
