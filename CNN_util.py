@@ -328,6 +328,28 @@ def freeze_session(session, keep_var_names=None, output_names=None, clear_device
         return frozen_graph
 
 
+def filter_sparse_to_dense(var_list):
+    '''
+    Finds Sparse tensors in list and converts to dense tensors. Returns list
+    where sparse tenors are wrapped with a tf.sparse.to_dense operation so that
+    any evaluation of the variables in the graph will only retun normal
+    Tensors. Useful for writing out values to numpy arrays.
+
+    Parameters:
+        var_list (list) : List of unevaluated tensors
+    Return:
+        ret_list (list) : Same list of tensors with SparseTensors wrapped with
+        a tf.sparse.to_dense operation so evaluation will result in a standard
+        tensor.
+    '''
+    ret_list = []
+    for var in var_list:
+        if isinstance(var,tf.SparseTensor):
+            var = tf.sparse.to_dense(var,default_value=-1)
+        ret_list.append(var)
+    return ret_list
+
+
 if __name__ == "__main__":
     import os
     import NetBuilder
