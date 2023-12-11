@@ -24,7 +24,7 @@ stim_n_reps = 20  # number of stimulus repetitions
 exp_n_reps = 1  # number of condition repetitions in the trial sequence
 n_countries = 13
 conditions = [1, 2, 3, 4, 5, 6]
-cochleagram_params = dict(sliced=True, minimum_padding=0.35)
+cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 
 # get stims from original experiment
 talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
