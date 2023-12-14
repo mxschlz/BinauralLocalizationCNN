@@ -37,6 +37,9 @@ if __name__ == "__main__":
     matplotlib.use("TkAgg")
     import matplotlib.pyplot as plt
     from stim_util import zero_padding
+    import seaborn as sns
+    sns.set_theme(style="white")
+    plt.rcParams['text.usetex'] = True  # TeX rendering
 
     pos_azi = 90
     pos_ele = 30
