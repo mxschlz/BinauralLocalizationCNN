@@ -31,9 +31,48 @@ def show_subbands(sig_bi):
 
 
 if __name__ == "__main__":
+    from stim_gen import render_stims
     import slab
+    import matplotlib
+    matplotlib.use("TkAgg")
+    import matplotlib.pyplot as plt
     from stim_util import zero_padding
-    sig_bi = slab.Binaural.vowel(duration=1.0, samplerate=48000)
-    sig_bi = zero_padding(sig_bi, type="front", goal_duration=2.0)
-    sig_norm = normalize_binaural_stim(sig_bi.data, sig_bi.samplerate)
-    subbands = cochleagram_wrapper(sig_norm[0], sig_norm[1], sliced=True, minimum_padding=0.45)
+
+    pos_azi = 90
+    pos_ele = 30
+    samplerate = 48828
+    sig = slab.Sound.dynamic_tone(samplerate=samplerate)
+    sig = zero_padding(sig, type="frontback", goal_duration=2.1)
+    sig_bi = render_stims(orig_stim=sig, pos_elev=pos_ele, pos_azim=pos_azi)
+    sound_bi = slab.Binaural(data=sig_bi[0]["sig"], samplerate=samplerate)
+
+    sig_norm = normalize_binaural_stim(sound_bi.data,
+                                       sound_bi.samplerate)
+    subbands = cochleagram_wrapper(sig_norm[0], sig_norm[1], sliced=True)
+
+    mosaic = """
+    ad
+    bb
+    cc"""
+    fig, ax = plt.subplot_mosaic(mosaic=mosaic)
+    ax["a"].plot(sig_norm[0][0])
+    ax["a"].plot(sig_norm[0][1])
+    ax["a"].set_ylabel('Amplitude (arb. unit)')
+    ax["a"].set_title("Original signal")
+    ax["a"].set_xticklabels([0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25])
+    ax["a"].legend(['left', 'right'])
+
+    ax["b"].imshow(subbands[:, :, 0], vmin=0, vmax=0.002, aspect='auto')
+    ax["b"].set_ylabel('Subbands')
+    ax["b"].set_title('Left ear')
+    ax["b"].tick_params(axis='x', labelbottom=False)
+
+    ax["c"].imshow(subbands[:, :, 1], vmin=0, vmax=0.002, aspect='auto')
+    ax["c"].set_ylabel('Subbands')
+    ax["c"].set_title('Right ear')
+    ax["c"].set_xticklabels([0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25])
+    ax["c"].set_xlabel('time (s)')
+
+    sound_bi.spectrum(axis=ax["d"])
+    ax["a"].get_shared_x_axes().join(ax["b"], ax["c"])
+    plt.show()
