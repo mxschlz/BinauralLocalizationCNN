@@ -131,8 +131,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         cost = tf.add(cost, reg_term)
 
     # launch the model
-    first_fc_idx = [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)].index('wc_fc_0:0')
-    late_layers = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[first_fc_idx:]
+    if is_msl:
+        first_fc_idx = [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)].index('wc_fc_0:0')
+        late_layers = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[first_fc_idx:]
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         if is_msl:
@@ -194,16 +195,18 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
             saver.restore(sess, os.path.join(trainedNet_path, "model.ckpt-" + f"{mv_num}"))
             header = ['model_pred'] + eval_keys
             # header = ['model_pred'] + eval_keys + ['cnn_idx_' + str(i) for i in range(504)]
-            bin_label_idx = header.index("train/binary_label")
-            header.pop(bin_label_idx)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
+            if is_msl:
+                bin_label_idx = header.index("train/binary_label")
+                header.pop(bin_label_idx)  # TODO: ONLY TEMPORARY DELETE BINARY LABEL COULMN
             csv_path = f"{save_name}_{net_name}_model_{mv_num}.csv"
             csv_handle = open(csv_path, 'w', encoding='UTF8', newline='')
             csv_writer = csv.writer(csv_handle)
             csv_writer.writerow(header)
-            cd_data = list()
-            binary_label_data = list()
-            cd_path = f"{save_name}_{net_name}_model_{mv_num}_cd.npy"
-            binary_label_path = f"{save_name}_{net_name}_model_{mv_num}_binary_labels.npy"
+            if is_msl:
+                cd_data = list()
+                binary_label_data = list()
+                cd_path = f"{save_name}_{net_name}_model_{mv_num}_cd.npy"
+                binary_label_path = f"{save_name}_{net_name}_model_{mv_num}_binary_labels.npy"
             while True:
                 # running individual batches
                 try:
@@ -214,11 +217,14 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                         n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
                     else:
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
-                    cd_data.append(cd)
-                    binary_label_data.append(binary_label)
+                    if is_msl:
+                        cd_data.append(cd)
+                        binary_label_data.append(binary_label)
 
-                    # prepare result to write into .csv
-                    csv_rows = list(zip(n_sounds_perceived, *e_vars))
+                        # prepare result to write into .csv
+                        csv_rows = list(zip(n_sounds_perceived, *e_vars))
+                    else:
+                        csv_rows = list(zip(pd, *e_vars))
                     # csv_rows = list(zip(n_sounds_perceived, *e_vars, cd.tolist()))
                     print("Writing data to file ...")
                     csv_writer.writerows(csv_rows)
@@ -231,8 +237,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
 
                 finally:
                     pass
-            np.save(cd_path, np.array(cd_data))
-            np.save(binary_label_path, np.array(binary_label_data))
+            if is_msl:
+                np.save(cd_path, np.array(cd_data))
+                np.save(binary_label_path, np.array(binary_label_data))
 
             # close the csv file
             csv_handle.close()
