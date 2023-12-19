@@ -21,6 +21,14 @@ for _ in range(16):
 stims_bi = []
 for sig in sigs:
     stims_bi.extend(augment_from_array(sig.data, sig.samplerate))
+
+"""
+for stim in stims_bi[:10]:
+    label = stim["label"]
+    print(f"label: {label}")
+    slab.Binaural(stim["sig"], samplerate=sample_rate).play()
+"""
+
 # preprocessing
 stims_bi = process_stims(stims_bi)
 
@@ -32,8 +40,8 @@ create_tfrecord(stims_bi, rec_file)
 status = check_record(rec_file)
 
 # same stimulus, filtered with HRTFs for elevation
-azimuths = [-50, -40, -30, -20, -10, 10, 20, 30, 40, 50]
-hrtfs = pick_hrtf_by_loc(azimuths)
+elevations = [-50, -40, -30, -20, -10, 10, 20, 30, 40, 50]
+hrtfs = pick_hrtf_by_loc(pos_elev=elevations)
 sigs = []
 for _ in range(16):
     sigs.append(slab.Sound.whitenoise(samplerate=sample_rate, duration=2.1).ramp())

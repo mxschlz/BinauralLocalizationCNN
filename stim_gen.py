@@ -242,4 +242,28 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=1, n_sampl
 
 
 if __name__ == "__main__":
-    pass
+    from stim_util import zero_padding
+    from show_subbands import show_subbands
+
+
+    samplerate = 44100  # initial samplerate for CNN
+    sound = slab.Sound.pinknoise(0.5, samplerate=samplerate)
+    sound = zero_padding(sound, goal_duration=2.1, type="frontback")
+
+    pos_azim = [-90, 0, 90]
+    pos_elev = [0]
+    stims_rendered = []  # Store the rendered stimuli
+
+    hrtf_sets = pick_hrtf_by_loc(pos_azim=pos_azim, pos_elev=pos_elev, hrtf_obj=KEMAR_HRTF)
+    stims_rendered.extend(augment_from_array(sound.data, sample_rate=sound.samplerate, hrtfs=hrtf_sets))
+
+
+    for i, stm in enumerate(stims_rendered):
+        label = stm["label"]
+        print(f"Stim {i}: {label}")
+        slab.Binaural(stm["sig"], samplerate=samplerate).play()
+        show_subbands(slab.Binaural(stm["sig"], samplerate=samplerate))
+        plt.show(block=True)
+
+
+
