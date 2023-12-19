@@ -24,7 +24,7 @@ def results_locaaccu(model_data_pattern, human_data_path, plane, stimtype, plot_
         col_pred = header.index('model_pred')  # get predicted position
         loc_act = CNNpos_to_loc(data[:, col_act])[1]  # convert bin to azi, ele positions
         loc_pred = CNNpos_to_loc(data[:, col_pred])[1]
-        fig, ax = plt.subplots(1, 2)
+        fig, ax = plt.subplots(1, 2, sharey=True)
         if plot_type == "violin":
             sns.violinplot(x=ele_act, y=ele_pred, color="skyblue", ax=ax[0])
             sns.violinplot(x=loc_act, y=loc_pred, color="skyblue", ax=ax[1])
@@ -58,7 +58,7 @@ def results_locaaccu(model_data_pattern, human_data_path, plane, stimtype, plot_
         # collapse front and back
         loc_pred[loc_pred > 90] = 180 - loc_pred[loc_pred > 90]
         loc_pred[loc_pred < -90] = -180 - loc_pred[loc_pred < -90]
-        fig, ax = plt.subplots(1, 2)
+        fig, ax = plt.subplots(1, 2, sharey=True)
         if plot_type == "violin":
             sns.violinplot(x=azi_act, y=azi_pred, color="skyblue", ax=ax[0])
             sns.violinplot(x=loc_act, y=loc_pred, color="skyblue", ax=ax[1])
