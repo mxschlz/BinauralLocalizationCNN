@@ -23,7 +23,7 @@ pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 6
 stim_fp = "/home/max/labplatform/sound_files/locaaccu_machine_gun_noise.pkl"
 stim = pickle.load(open(stim_fp, "rb"))
 # resize and resample
-stim = stim[0].resize(0.25).resample(samplerate)
+stim = stim[0].resize(0.25).resample(samplerate).ramp()
 stim = zero_padding(stim, goal_duration=2.0, type="frontback")
 
 
@@ -54,7 +54,7 @@ status = check_record(rec_file)
 # get stims
 babble_fn = "/home/max/labplatform/sound_files/locaaccu_babble_noise.pkl"
 babble = pickle.load(open(babble_fn, "rb"))[0]
-babble = babble.resample(samplerate)
+babble = babble.resample(samplerate).ramp()
 babble = zero_padding(babble, goal_duration=2.0, type="frontback")
 
 stims_final = render_stims(orig_stim=babble, pos_azim=pos_azim, pos_elev=pos_elev, hrtf_obj=KEMAR_HRTF, n_reps=10)
