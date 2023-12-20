@@ -15,7 +15,7 @@ samplerate = 44100  # initial samplerate for CNN
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 # render the sound
 pos_azim = [0]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
-pos_elev = [0, 10, 20, 30, 40]  # alternative: [0, 10, 20, 30, 40]
+pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
 
 # stim = pickle.load(open("/home/max/labplatform/sound_files/locaaccu_machine_gun_noise.pkl", "rb"))[0]
 # stim = stim.repeat(int((2.1 - stim.duration) / stim.duration + 2))
@@ -31,6 +31,7 @@ stim = zero_padding(stim, goal_duration=2.0, type="frontback")
 # sofa_root = os.path.join("tfrecords", "cipic_hrtfs")  # sofa files directory
 # cipic_hrtfs = [slab.HRTF(data=os.path.join(sofa_root, x)) for x in os.listdir(sofa_root)]  # hrtfs from CIPIC dataset
 stims_final = render_stims(orig_stim=stim, pos_azim=pos_azim, pos_elev=pos_elev, hrtf_obj=KEMAR_HRTF, n_reps=10)
+
 """
 for i, stm in enumerate(stims_final):
     label = stm["label"]
@@ -56,7 +57,7 @@ babble = pickle.load(open(babble_fn, "rb"))[0]
 babble = babble.resample(samplerate)
 babble = zero_padding(babble, goal_duration=2.0, type="frontback")
 
-stims_final = render_stims(orig_stim=babble, pos_azim=pos_azim, pos_elev=pos_elev, hrtf_obj=KEMAR_HRTF, n_sample=1, n_reps=10)
+stims_final = render_stims(orig_stim=babble, pos_azim=pos_azim, pos_elev=pos_elev, hrtf_obj=KEMAR_HRTF, n_reps=10)
 
 # preprocessing
 stims_final = process_stims(stims_final, coch_param=cochleagram_params)

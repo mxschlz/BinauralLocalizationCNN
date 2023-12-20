@@ -40,7 +40,7 @@ create_tfrecord(stims_bi, rec_file)
 status = check_record(rec_file)
 
 # same stimulus, filtered with HRTFs for elevation
-elevations = [-50, -40, -30, -20, -10, 10, 20, 30, 40, 50]
+elevations = [0, 10, 20, 30, 40, 50, 60]
 hrtfs = pick_hrtf_by_loc(pos_elev=elevations)
 sigs = []
 for _ in range(16):

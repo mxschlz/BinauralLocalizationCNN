@@ -2,11 +2,12 @@ import matplotlib
 matplotlib.use("TkAgg")
 from CNN_result_analysis import result_figure1, result_figure2, result_figure3
 import os
+import matplotlib.pyplot as plt
 
 
 res_path = 'Result'
 # figure 1
-res_patt = os.path.join(res_path, 'broadband_noise_elevation*csv')
+res_patt = os.path.join(res_path, 'broadband_noise_azimuth_net1*csv')
 hdata_path = os.path.join(res_path, 'human_f1.xlsx')
 result_figure1(res_patt, hdata_path)
 
