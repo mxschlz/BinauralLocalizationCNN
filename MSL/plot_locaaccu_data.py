@@ -9,7 +9,7 @@ import os
 import numpy as np
 
 res_path = 'Result'
-model_data_pattern = os.path.join(res_path, "LocaAccu_babble_ele_result_net1*")
+model_data_pattern = os.path.join(res_path, "LocaAccu_noise_ele_result*")
 
 
 header, data = read_resfiles(model_data_pattern)  # read results file
@@ -18,4 +18,10 @@ col_act = header.index('train/cnn_idx')  # get actual position column
 col_pred = header.index('model_pred')  # get predicted position
 loc_act = CNNpos_to_loc(data[:, col_act])[1]  # convert bin to azi, ele positions
 loc_pred = CNNpos_to_loc(data[:, col_pred])[1]
-sns.regplot(loc_act, loc_pred)
+loc_act[loc_act > 180] = loc_act[loc_act > 180] - 360
+loc_pred[loc_pred > 180] = loc_pred[loc_pred > 180] - 360
+# collapse front and back
+loc_pred[loc_pred > 90] = 180 - loc_pred[loc_pred > 90]
+loc_pred[loc_pred < -90] = -180 - loc_pred[loc_pred < -90]
+sns.lineplot(loc_act, loc_pred)
+plt.show()
