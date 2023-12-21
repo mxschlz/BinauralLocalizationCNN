@@ -14,25 +14,29 @@ from show_subbands import show_subbands
 samplerate = 44100  # initial samplerate for CNN
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 # render the sound
-pos_azim = [-55, -35, -15, 0, 15, 35, 55]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
-pos_elev = [0]  # alternative: [0, 10, 20, 30, 40, 50, 60]
+pos_azim = [15]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
+pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
+hrtfs = pick_hrtf_by_loc(pos_azim=pos_azim, pos_elev=pos_elev)
+
 
 # stim = pickle.load(open("/home/max/labplatform/sound_files/locaaccu_machine_gun_noise.pkl", "rb"))[0]
 # stim = stim.repeat(int((2.1 - stim.duration) / stim.duration + 2))
 # stim = stim.resample(samplerate)
 stim_fp = "/home/max/labplatform/sound_files/locaaccu_machine_gun_noise.pkl"
-stim = pickle.load(open(stim_fp, "rb"))
+stim = pickle.load(open(stim_fp, "rb"))[0].ramp()
 # resize and resample
-stim = stim[0].resize(0.25).resample(samplerate).ramp()
+stim = stim.resize(0.25).resample(samplerate)
+stim.level = 70
 stim = zero_padding(stim, goal_duration=2.0, type="frontback")
 
 
 # load sofa files from CIPIC as ear mold simulation
 # sofa_root = os.path.join("tfrecords", "cipic_hrtfs")  # sofa files directory
 # cipic_hrtfs = [slab.HRTF(data=os.path.join(sofa_root, x)) for x in os.listdir(sofa_root)]  # hrtfs from CIPIC dataset
-hrtfs = pick_hrtf_by_loc(pos_azim=pos_azim, pos_elev=pos_elev)
+
+
 stims_final = []
-for _ in range(35):
+for _ in range(16):
     stims_final.extend(augment_from_array(stim.data, stim.samplerate, hrtfs=hrtfs))
 
 
@@ -48,7 +52,7 @@ for i, stm in enumerate(stims_final):
 # preprocessing
 stims_final = process_stims(stims_final, coch_param=cochleagram_params)
 # write tfrecord
-rec_file = f'locaaccu_noise_azi_{pos_azim}.tfrecords'
+rec_file = f'tfrecords/locaaccu_noise_ele_{pos_elev}.tfrecords'
 create_tfrecord(stims_final, rec_file)
 # check record file
 status = check_record(rec_file)
@@ -57,18 +61,19 @@ status = check_record(rec_file)
 # render the sound
 # get stims
 babble_fn = "/home/max/labplatform/sound_files/locaaccu_babble_noise.pkl"
-babble = pickle.load(open(babble_fn, "rb"))[0]
-babble = babble.resample(samplerate).ramp()
+babble = pickle.load(open(babble_fn, "rb"))[0].ramp()
+babble = babble.resample(samplerate)
+babble.level = 70
 babble = zero_padding(babble, goal_duration=2.0, type="frontback")
 
 stims_final = []
-for _ in range(35):
-    stims_final.extend(augment_from_array(stim.data, stim.samplerate, hrtfs=hrtfs))
+for _ in range(16):
+    stims_final.extend(augment_from_array(babble.data, babble.samplerate, hrtfs=hrtfs))
 
 # preprocessing
 stims_final = process_stims(stims_final, coch_param=cochleagram_params)
 # write tfrecord
-rec_file = f'locaaccu_babble_azi_{pos_azim}.tfrecords'
+rec_file = f'tfrecords/locaaccu_babble_ele_{pos_elev}.tfrecords'
 create_tfrecord(stims_final, rec_file)
 # check record file
 status = check_record(rec_file)
