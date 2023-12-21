@@ -1,4 +1,4 @@
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function, filter_sparse_to_dense
+from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
 from NetBuilder import NetBuilder
 
 import os
@@ -81,7 +81,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     for k, v in data_samp.items():
         if k not in ('train/image', 'train/image_height', 'train/image_width'):
             data_label[k] = data_samp[k]
-    if "augment" in ds_params:
+    augment = ds_params["augment"]
+    if augment:
         data_samp["train/image"] = apply_random_augmentation(data_samp["train/image"])
 
     # build the CNN net
@@ -131,10 +132,11 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         cost = tf.add(cost, reg_term)
 
     # launch the model
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
     if is_msl:
         first_fc_idx = [x.name for x in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)].index('wc_fc_0:0')
         late_layers = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[first_fc_idx:]
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         if is_msl:
             update_grads = (tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],epsilon=1e-4)
