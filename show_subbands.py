@@ -38,8 +38,9 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from stim_util import zero_padding
     import seaborn as sns
-    sns.set_theme(style="white")
-    plt.rcParams['text.usetex'] = True  # TeX rendering
+    import scienceplots
+
+    plt.style.use("science")
     plt.ion()
 
     pos_azi = 90
@@ -61,13 +62,15 @@ if __name__ == "__main__":
     cc
     """
     fig, ax = plt.subplot_mosaic(mosaic=mosaic)
+    plt.subplots_adjust(wspace=0.15, hspace=0.2)
 
     ax["a"].plot(t, sig_norm[0][0][1000:49000])
     ax["a"].plot(t, sig_norm[0][1][1000:49000])
-    ax["a"].set_ylabel('Amplitude (arb. unit)')
+    ax["a"].set_ylabel('Amplitude [arb. unit]')
     # ax["a"].set_title("Original signal")
     # ax["a"].set_xticks([])
-    ax["a"].legend(['left', 'right'])
+    # Put a legend to the right of the current axis
+    ax["a"].legend(['left', 'right'], loc='upper right', bbox_to_anchor=(1.25, 1.4))
 
     ax["b"].imshow(subbands[:, :, 0], vmin=0, vmax=0.002, aspect='auto')
     ax["b"].set_ylabel('Subbands')
@@ -79,11 +82,15 @@ if __name__ == "__main__":
     ax["c"].set_ylabel('Subbands')
     # ax["c"].set_title('Right ear')
     # ax["c"].set_xticks([])
-    ax["c"].set_xlabel('Time (s)')
+    ax["c"].set_xlabel('Time [s]')
 
     sound_bi.spectrum(axis=ax["d"])
     ax["a"].get_shared_x_axes().join(ax["b"], ax["c"])
-    ax["d"].set_xlabel("")
+    ax["d"].set_xlabel("Frequency [Hz]")
+    ax["a"].set_xlabel("Time [s]")
+
     ax["d"].set_title("")
     ax["c"].set_xticklabels([-0.2, 0, 0.2, 0.4, 0.6, 0.80])
     # plt.tight_layout(pad=0.01)
+
+    plt.savefig("/home/max/labplatform/plots/MA_thesis/materials_methods/waveform_spectrum_cochleagram.png")
