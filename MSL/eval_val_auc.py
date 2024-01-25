@@ -3,12 +3,14 @@ import glob
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
+import scienceplots
+plt.style.use("science")
 import seaborn as sns
 
-matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 
 # get all auc files --> 10 nets, 10 files
-files = sorted(glob.glob("*val_auc.npy"))
+files = sorted(glob.glob("val_auc/*val_auc.npy"))
 # get all netnames
 netnames = [f.split("_val")[0] for f in files]
 
@@ -26,5 +28,4 @@ df = pd.DataFrame(d)
 
 df.plot()
 plt.scatter(x=df.index, y=df.mean(axis=1))
-plt.title("AUC")
 plt.show()
