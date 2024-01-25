@@ -56,41 +56,24 @@ if __name__ == "__main__":
     subbands = cochleagram_wrapper(sig_norm[0], sig_norm[1], sliced=True)
     t = np.arange(48000)/48000
 
+    diff = subbands[:, :, 0] - subbands[:, :, 1]
+
     mosaic = """
-    ad
-    bb
-    cc
+    c
+    b
     """
     fig, ax = plt.subplot_mosaic(mosaic=mosaic)
-    plt.subplots_adjust(wspace=0.15, hspace=0.2)
+    plt.subplots_adjust(wspace=0.15, hspace=0.25)
 
-    ax["a"].plot(t, sig_norm[0][0][1000:49000])
-    ax["a"].plot(t, sig_norm[0][1][1000:49000])
-    ax["a"].set_ylabel('Amplitude [arb. unit]')
-    # ax["a"].set_title("Original signal")
-    # ax["a"].set_xticks([])
-    # Put a legend to the right of the current axis
-    ax["a"].legend(['left', 'right'], loc='upper right', bbox_to_anchor=(1.25, 1.4))
-
-    ax["b"].imshow(subbands[:, :, 0], vmin=0, vmax=0.002, aspect='auto')
-    ax["b"].set_ylabel('Subbands')
-    # ax["b"].set_title('Left ear')
-    # ax["b"].set_xticks([])
+    pos = ax["b"].imshow(diff, vmin=0, vmax=0.0001, aspect='auto', cmap="binary")
+    ax["b"].set_ylabel('Subbands', fontsize=10)
     ax["b"].tick_params(axis='x', labelbottom=False)
-
-    ax["c"].imshow(subbands[:, :, 1], vmin=0, vmax=0.002, aspect='auto')
-    ax["c"].set_ylabel('Subbands')
-    # ax["c"].set_title('Right ear')
-    # ax["c"].set_xticks([])
-    ax["c"].set_xlabel('Time [s]')
-
-    sound_bi.spectrum(axis=ax["d"])
-    ax["a"].get_shared_x_axes().join(ax["b"], ax["c"])
-    ax["d"].set_xlabel("Frequency [Hz]")
-    ax["a"].set_xlabel("Time [s]")
-
-    ax["d"].set_title("")
-    ax["c"].set_xticklabels([-0.2, 0, 0.2, 0.4, 0.6, 0.80])
-    # plt.tight_layout(pad=0.01)
+    ax["b"].set_xticklabels([-0.2, 0, 0.2, 0.4, 0.6, 0.80])
+    sound_bi.spectrum(axis=ax["c"])
+    ax["c"].set_title("")
+    ax["c"].set_xlabel("Frequency [Hz]")
+    ax["b"].tick_params(axis='x', labelbottom=True)
+    ax["b"].set_xlabel("Time (s)", fontsize=10)
+    fig.colorbar(pos, ax=ax["b"])
 
     plt.savefig("/home/max/labplatform/plots/MA_thesis/materials_methods/waveform_spectrum_cochleagram.png")
