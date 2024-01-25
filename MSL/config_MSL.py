@@ -8,7 +8,7 @@ CONFIG_TRAIN = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "
                                        "display_step": 25,
                                        "total_steps": 2000,
                                        "checkpoint_step": 100},
-                    DEFAULT_DATA_PARAM={"augment": True}
+                    DEFAULT_DATA_PARAM={"augment": False}
                     )
 
 CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n_classes_localization": 504,

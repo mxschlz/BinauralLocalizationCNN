@@ -92,8 +92,8 @@ for i, _ in enumerate(sequence):
             log.write(comb, "speakers_sample_ele")
             log.write(country_idxs, "country_idxs_ele")
             for el, talker, country_idx in zip(comb, talkers_samp, country_idxs):
-                print(f"Adding {az}, {talker}, {country_idx} ... ")
-                stim = render_stims(stimlist_clear[talker][country_idx], pos_azim=az, pos_elev=0)
+                print(f"Adding {el}, {talker}, {country_idx} ... ")
+                stim = render_stims(stimlist_clear[talker][country_idx], pos_azim=0, pos_elev=el)
                 binary_label[stim[0]["label"]["cnn_idx"]] = 1
                 sound += slab.Binaural(data=stim[0]["sig"], samplerate=samplerate).resample(samplerate).resize(
                     len(sound))

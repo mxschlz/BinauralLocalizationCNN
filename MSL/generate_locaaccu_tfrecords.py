@@ -14,8 +14,8 @@ from show_subbands import show_subbands
 samplerate = 44100  # initial samplerate for CNN
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 # render the sound
-pos_azim = [15]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
-pos_elev = [0, 10, 20, 30, 40, 50, 60]  # alternative: [0, 10, 20, 30, 40, 50, 60]
+pos_azim = [-30, -15, 0, 15, 30]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
+pos_elev = [0]  # alternative: [0, 10, 20, 30, 40, 50, 60]
 hrtfs = pick_hrtf_by_loc(pos_azim=pos_azim, pos_elev=pos_elev)
 
 
@@ -52,7 +52,7 @@ for i, stm in enumerate(stims_final):
 # preprocessing
 stims_final = process_stims(stims_final, coch_param=cochleagram_params)
 # write tfrecord
-rec_file = f'tfrecords/locaaccu_noise_ele_{pos_elev}.tfrecords'
+rec_file = f'tfrecords/locaaccu_noise_azi_{pos_azim}.tfrecords'
 create_tfrecord(stims_final, rec_file)
 # check record file
 status = check_record(rec_file)
@@ -73,7 +73,7 @@ for _ in range(16):
 # preprocessing
 stims_final = process_stims(stims_final, coch_param=cochleagram_params)
 # write tfrecord
-rec_file = f'tfrecords/locaaccu_babble_ele_{pos_elev}.tfrecords'
+rec_file = f'tfrecords/locaaccu_babble_azi_{pos_azim}.tfrecords'
 create_tfrecord(stims_final, rec_file)
 # check record file
 status = check_record(rec_file)

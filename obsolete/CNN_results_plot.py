@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 from analysis_and_plotting.misc import *
-import ptitprince as pt
 
 
 def results_locaaccu(model_data_pattern, human_data_path, plane, stimtype, plot_type="raincloud"):

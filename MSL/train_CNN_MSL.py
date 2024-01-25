@@ -3,7 +3,7 @@ from run_CNN import run_CNN
 import MSL.config_MSL as cfg
 
 
-stim_tfrecs = os.path.join("*train_azi*.tfrecords")
+stim_tfrecs = os.path.join("tfrecords/*train*.tfrecords")
 total_retries = (cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["total_steps"] /
                  cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["checkpoint_step"])
 cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["testing"] = False
