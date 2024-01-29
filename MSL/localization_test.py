@@ -13,7 +13,7 @@ CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n
                    DEFAULT_DATA_PARAM={"augment": False}
                    )
 
-stim_tfrecs = "tfrecords/locaaccu_babble_azi*.tfrecords"
+stim_tfrecs = "tfrecords/locaaccu_babble_ele*.tfrecords"
 
 plane = stim_tfrecs.split("_")[-1].split(".")[0].split("*")[0]
 

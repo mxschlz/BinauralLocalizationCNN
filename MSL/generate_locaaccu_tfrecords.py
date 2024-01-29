@@ -14,8 +14,8 @@ from show_subbands import show_subbands
 samplerate = 44100  # initial samplerate for CNN
 cochleagram_params = dict(sliced=True, minimum_padding=0.45)
 # render the sound
-pos_azim = [-30, -15, 0, 15, 30]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
-pos_elev = [0]  # alternative: [0, 10, 20, 30, 40, 50, 60]
+pos_azim = [0]  # alternative: [-55, -35, -15, 0, 15, 35, 55]
+pos_elev = [0, 10, 20, 30, 40]  # alternative: [0, 10, 20, 30, 40]
 hrtfs = pick_hrtf_by_loc(pos_azim=pos_azim, pos_elev=pos_elev)
 
 
