@@ -23,3 +23,13 @@ CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n
                                                                  CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["checkpoint_step"])]},
                    DEFAULT_DATA_PARAM={"augment": False}
                    )
+
+FRANCL = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n_classes_localization": 504,
+                                      "decision_criterion": 0.09},
+                   DEFAULT_COST_PARAM={"multi_source_localization": True},
+                   DEFAULT_RUN_PARAM={'learning_rate': 1e-3,
+                                      'batch_size': 16,
+                                      'testing': True,
+                                      'model_version': [110000]},
+                   DEFAULT_DATA_PARAM={"augment": False}
+                   )

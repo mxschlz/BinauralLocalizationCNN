@@ -5,8 +5,8 @@ import scienceplots
 plt.style.use("science")
 import os
 from analysis_and_plotting.decision_rule import decide_sound_presence
-plt.ion()
 import time
+plt.ion()
 
 
 # get model versions
@@ -17,16 +17,18 @@ results_root = "Results_no_augment_reversed"
 
 # read results files from csv
 model = models[7]
-for model in models[10:11]:
-    print(f"Model {model} output: ")
-    csv_patt = os.path.join(results_root, f"*ele_*model_{model}.csv")
+nets = [f"net{x}" for x in range(1, 11)]
+#for model in models:
+for net in nets:
+    print(f"net {net} output: ")
+    csv_patt = os.path.join(results_root, f"*ele_*{net}_*model_{model}.csv")
     header, csv = read_resfiles(csv_patt, filetype="csv")
     csv = np.concatenate(csv, axis=0)
     col_act = header.index('train/n_sounds')  # get actual position column
     n_act = csv[:, col_act]
 
     # get cond_dist from all nets
-    npy_patt = os.path.join(results_root, f"*_ele_*model_{model}_cd*.npy")
+    npy_patt = os.path.join(results_root, f"*_ele_*{net}_*model_{model}_cd*.npy")
     npy = read_resfiles(npy_patt, filetype="npy")
     npy = np.concatenate(npy, axis=1)
     # crit_range = np.linspace(0.08, 0.09, 11)
@@ -34,12 +36,12 @@ for model in models[10:11]:
     to_plot = list()
     idx_start = 0
     for i, d in enumerate(npy):  # TODO: original cd shape of one run is (16, 504)
-        n_sounds_perceived = decide_sound_presence(d, criterion=0.08)
+        n_sounds_perceived = decide_sound_presence(d, criterion=0.085)
         act = n_act[idx_start:idx_start+len(n_sounds_perceived)].tolist()
         idx_start += len(n_sounds_perceived)
         to_plot.append([act, n_sounds_perceived])
     to_plot = np.array(to_plot)
-    to_plot = to_plot.transpose(0, 2, 1).reshape((4960, 2))
+    to_plot = to_plot.transpose(0, 2, 1).reshape((496, 2))
 
     new_x = list()
     new_y = list()
@@ -53,11 +55,11 @@ for model in models[10:11]:
     sns.lineplot(x=new_x, y=new_y, err_style="bars", errorbar=("se", 2))
     # sns.lineplot(x=to_plot[:, 0], y=to_plot[:, 1], err_style="bars", ax=ax[1])
 
-    plt.xlim([1.5, 6.5])
-    plt.ylim([1.5, 6.5])
-    plt.title(f"Model {model} output: ")
-    #plt.gca().invert_xaxis()
-    #plt.xticks([2,3,4,5,6], [6,5,4,3,2,])
+    #plt.xlim([1.5, 6.5])
+    #plt.ylim([1.5, 6.5])
+    plt.title(f"net {net} output: ")
+    plt.gca().invert_xaxis()
+    plt.xticks([2,3,4,5,6], [6,5,4,3,2,])
     plt.xlabel("Actual Number Of Sources")
     plt.ylabel("Reported Number Of Sources")
     plt.plot(plt.xlim(), plt.ylim(), ls="--", c=".3")

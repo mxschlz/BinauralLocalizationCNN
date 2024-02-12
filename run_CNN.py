@@ -82,7 +82,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         if k not in ('train/image', 'train/image_height', 'train/image_width'):
             data_label[k] = data_samp[k]
     augment = ds_params["augment"]
-    if augment:
+    if augment is True:
         data_samp["train/image"] = apply_random_augmentation(data_samp["train/image"])
 
     # build the CNN net
