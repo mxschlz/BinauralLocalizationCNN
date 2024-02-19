@@ -20,7 +20,7 @@ model_data_pattern_babble = os.path.join(res_path, "*babble_azi_*")
 layout = """
 ab
 """
-ax = plt.figure().subplot_mosaic(layout, sharex=True, sharey=True)
+fig, ax = plt.subplot_mosaic(layout, sharex=True, sharey=True, figsize=(6, 3))
 
 header, data = read_resfiles(model_data_pattern_noise)  # read results file
 data = np.concatenate(data, axis=0)  # concatenate data
@@ -80,10 +80,13 @@ sns.lineplot(x=loc_act-20, y=loc_pred-20, ax=ax["b"], label="Babble Noise")
 
 ax["a"].plot(ax["a"].get_xlim(), ax["a"].get_ylim(), ls="--", c=".3")
 ax["b"].plot(ax["b"].get_xlim(), ax["b"].get_ylim(), ls="--", c=".3")
-ax["a"].text(-0.1, 1.0, string.ascii_uppercase[0], transform=ax["a"].transAxes,
+ax["a"].text(-0.15, 1.05, string.ascii_uppercase[0], transform=ax["a"].transAxes,
                size=20, weight='bold')
-ax["b"].text(-0.1, 1.0, string.ascii_uppercase[1], transform=ax["b"].transAxes,
+ax["b"].text(-0.15, 1.05, string.ascii_uppercase[1], transform=ax["b"].transAxes,
                size=20, weight='bold')
+ax["a"].set_xlabel("Actual Position (Degrees)")
+ax["a"].set_ylabel("Judged Position (Degrees)")
+ax["b"].set_xlabel("Actual Position (Degrees)")
 plt.savefig("/home/max/PycharmProjects/BinauralLocalizationCNN/plots/locaaccu_model_performance.png",
             dpi=400,
             bbox_inches="tight")
