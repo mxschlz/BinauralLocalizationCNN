@@ -1,6 +1,7 @@
 import numpy as np
 import glob
 import matplotlib
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import scienceplots
@@ -8,7 +9,6 @@ plt.style.use("science")
 plt.ion()
 import seaborn as sns
 
-matplotlib.use("TkAgg")
 
 # get all auc files --> 10 nets, 10 files
 files = sorted(glob.glob("val_auc/*val_auc.npy"))
@@ -36,3 +36,5 @@ plt.vlines(x=14, ymin=plt.ylim()[0], ymax=df.mean(axis=1)[14], color="grey", lin
 plt.hlines(y=df.mean(axis=1)[14], xmin=plt.xlim()[0], xmax=14, color="grey", linestyles="dashed")
 plt.xlabel("Training Level Per Hundred Steps")
 plt.ylabel("Area Under The Curve [Percent]")
+plt.gca().figure.set_figheight(5)
+plt.gca().figure.set_figheight(5)
