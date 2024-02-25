@@ -33,12 +33,10 @@ def show_subbands(sig_bi):
 if __name__ == "__main__":
     from stim_gen import render_stims
     import slab
-    import matplotlib
-    matplotlib.use("TkAgg")
-    import matplotlib.pyplot as plt
     from stim_util import zero_padding
     import seaborn as sns
     import scienceplots
+    import matplotlib.pyplot as plt
 
     plt.style.use("science")
     plt.ion()
@@ -62,7 +60,7 @@ if __name__ == "__main__":
     c
     b
     """
-    fig, ax = plt.subplot_mosaic(mosaic=mosaic)
+    fig, ax = plt.subplot_mosaic(mosaic=mosaic, figsize=(6, 3))
     plt.subplots_adjust(wspace=0.15, hspace=0.25)
 
     pos = ax["b"].imshow(diff, vmin=0, vmax=0.0001, aspect='auto', cmap="binary")
@@ -75,5 +73,6 @@ if __name__ == "__main__":
     ax["b"].tick_params(axis='x', labelbottom=True)
     ax["b"].set_xlabel("Time (s)", fontsize=10)
     fig.colorbar(pos, ax=ax["b"])
+    plt.tight_layout()
 
     plt.savefig("/home/max/labplatform/plots/MA_thesis/materials_methods/waveform_spectrum_cochleagram.png")
