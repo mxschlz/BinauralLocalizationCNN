@@ -1,9 +1,5 @@
-import matplotlib
-#matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
 import slab
 import pickle
-import numpy as np
 
 
 _ils = pickle.load(open('interaural_level_spectrum/ils.pickle', 'rb'))  # load interaural level spectrum
@@ -25,6 +21,8 @@ def change_ild(stim, azi):
 
 
 if __name__ == "__main__":
+    import matplotlib
+    import matplotlib.pyplot as plt
     stim = slab.Binaural.whitenoise()
     plt.plot(stim.data[:, 0])
     plt.plot(stim.data[:, 1])

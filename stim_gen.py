@@ -2,13 +2,15 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
-from stim_util import resample, utl, loc_to_CNNpos
+from stim_util import loc_to_CNNpos
+from nnresample import resample
 import slab
 # import pyroomacoustics as pra
 from collections import Sized
 from copy import deepcopy
 import warnings
 from stim_manipulation import change_itd
+from pycochleagram import utils as utl
 
 
 # use Kremar HRTF
