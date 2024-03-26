@@ -1,6 +1,3 @@
-import matplotlib
-matplotlib.use("TkAgg")
-import stim_gen
 import slab
 import os
 from copy import deepcopy
@@ -21,13 +18,6 @@ for _ in range(16):
 stims_bi = []
 for sig in sigs:
     stims_bi.extend(augment_from_array(sig.data, sig.samplerate))
-
-"""
-for stim in stims_bi[:10]:
-    label = stim["label"]
-    print(f"label: {label}")
-    slab.Binaural(stim["sig"], samplerate=sample_rate).play()
-"""
 
 # preprocessing
 stims_bi = process_stims(stims_bi)
@@ -163,7 +153,7 @@ for ild in ILD_bias:
 # process and write
 stims_low_final = process_stims(stims_low_final)
 # write tfrecord
-rec_path = os.path.join('../tfrecords', 'mcdermott')
+rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_low_ITDILD.tfrecords')
 create_tfrecord(stims_low_final, rec_file)
 # check record file
@@ -205,25 +195,8 @@ for cf in center_freq:
 # preprocessing
 sigs_bp_bi = process_stims(sigs_bp_bi)
 # write tfrecord
-rec_path = os.path.join('../tfrecords', 'mcdermott')
+rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_bandwidth.tfrecords')
 create_tfrecord(sigs_bp_bi, rec_file)
-# check record file
-status = check_record(rec_file)
-
-
-# REPLICATE RELEARNING OF ELEVATION CUES EXPERIMENT
-eles = [0, 10, 20, 30, 40, 50, 60]
-azis = [-30, -20, -10, 0, 10, 20, 30]
-
-noise = slab.Sound.whitenoise(2.1, samplerate=sample_rate)
-final = render_stims(orig_stim=noise, pos_azim=azis, pos_elev=eles, hrtf_obj=stim_gen.KEMAR_HRTF)
-
-# preprocessing
-final_preproc = process_stims(final)
-# write tfrecord
-rec_path = "/tfrecords/mcdermott"
-rec_file = os.path.join(rec_path, 'SL_unmodified_ears.tfrecords')
-create_tfrecord(final_preproc, rec_file)
 # check record file
 status = check_record(rec_file)
