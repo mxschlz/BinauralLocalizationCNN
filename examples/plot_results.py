@@ -1,4 +1,6 @@
-from CNN_result_analysis import *
+from CNN_result_analysis import read_resfiles, CNNpos_to_loc
+import os
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 

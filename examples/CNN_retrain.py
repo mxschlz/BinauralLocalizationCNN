@@ -16,7 +16,6 @@ import memory_saving_gradients
 from tensorflow.python.ops import gradients
 from run_CNN import update_param_dict
 from MSL.config_MSL import CONFIG_TRAIN as cfg
-from augment import *
 # import mem_util
 
 # this controls CUDA convolution optimization

@@ -1,6 +1,6 @@
 import matplotlib
 matplotlib.use("TkAgg")
-from stim_gen import *
+from stim_gen import augment_from_array, pick_hrtf_by_loc
 from CNN_preproc import process_stims
 from tfrecord_gen import create_tfrecord, check_record
 import pickle

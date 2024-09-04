@@ -4,6 +4,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from stim_gen import augment_from_wav, augment_from_array, pick_hrtf_by_loc, KEMAR_HRTF
 
+"""
+Takes a sound and augments it with HRTFs from KEMAR, then plots stuff. Unsure what exactly.
+Might be useful for my own plots...
+No usages.
+"""
+
 data_path = os.path.join("examples", 'stimuli')
 wav_ori = 'test.wav'
 wf = os.path.join(data_path, wav_ori)
@@ -13,9 +19,9 @@ sig_ori, sf = sound.data, sound.samplerate
 sig_ori = sig_ori[:, 0] / np.max(sig_ori)
 
 # sound with hrtf
-bsig_hrtf = augment_from_array(sig_ori, sf)
+bsig_hrtf = augment_from_array(sig_ori, sf)  # unused
 # or directly from .wav file
-bsig_hrtf = augment_from_wav(wf)
+bsig_hrtf = augment_from_wav(wf)  # unused
 
 # plotting
 # pick hrtf at -45 and 45, both at elevation of 10

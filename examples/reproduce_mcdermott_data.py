@@ -2,7 +2,7 @@ import slab
 import os
 from copy import deepcopy
 
-from stim_gen import augment_from_array, pick_hrtf_by_loc, render_stims
+from stim_gen import augment_from_array, pick_hrtf_by_loc
 from CNN_preproc import process_stims
 from tfrecord_gen import create_tfrecord, check_record
 

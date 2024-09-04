@@ -1,4 +1,6 @@
-from stim_gen import *
+from stim_gen import render_stims
+import random
+import numpy as np
 import pickle
 from CNN_preproc import process_stims
 from stim_util import zero_padding
