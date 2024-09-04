@@ -2,6 +2,26 @@ import warnings
 
 import tensorflow as tf
 
+config_array = [[["/gpu:0"], ['conv', [2, 50, 32], [1, 4]], ['relu'], ['pool', [1, 4]]],
+                [["/gpu:1"], ['conv', [4, 20, 64], [1, 1]], ['bn'], ['relu'], ['pool', [1, 4]],
+                 ['conv', [8, 8, 128], [1, 1]], ['bn'], ['relu'], ['pool', [1, 4]], ['conv', [8, 8, 256], [1, 1]],
+                 ['bn'], ['relu'], ['pool', [1, 8]], ['conv', [8, 8, 512], [1, 1]], ['bn'], ['relu'], ['pool', [2, 2]]],
+                [["/gpu:2"], ['fc', 512], ['fc_bn'], ['fc_relu'], ['dropout'], ['out']]]
+
+"""
+Config Array
+
+A list where each item is:
+A list where the first element is the device to run the layer on and the rest of the elements are the layers
+
+config_array[0]: Config for first device
+config_array[0][0]: Device to run the layer on
+config_array[0][1-n]: Layer 1 to n
+
+Layer definitions:
+'conv': Convolution layer ['conv', [kernel_height, kernel_width, num_filters], [stride_height, stride_width]]
+
+"""
 
 class NetBuilder:
 
@@ -56,9 +76,9 @@ class NetBuilder:
             start_point = 1
             if branched_point is False:
                 with tf.device(gpu1):
-                    for element in lst[1:]:
+                    for element in lst[1:]:  # Throw away the first element which is the device
                         if element[0] == 'conv':
-                            size = self.input.get_shape()
+                            size = self.input.get_shape()  # Shape of the input tensor
                             kernel_size = [element[1][0], element[1][1], size[3], element[1][2]]
                             stride_size = [1, element[2][0], element[2][1], 1]
                             filter_height = kernel_size[0]
