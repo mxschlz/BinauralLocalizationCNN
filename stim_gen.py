@@ -1,73 +1,85 @@
 import random
-
 import matplotlib.pyplot as plt
 import numpy as np
 from stim_util import loc_to_CNNpos
 from nnresample import resample
 import slab
 # import pyroomacoustics as pra
-from collections import Sized
+from collections import Iterable
 from copy import deepcopy
 import warnings
 from stim_manipulation import change_itd
-from pycochleagram import utils as utl
+from pycochleagram import utils
+import itertools
 
-
-# use Kremar HRTF
-KEMAR_HRTF = slab.HRTF.kemar()
+# use Kemar HRTF
+KEMAR_HRTF: slab.HRTF = slab.HRTF.kemar()
 # source locations are in hrtf.sources, centered on listener
 # default positions
-DEFAULT_POSITIONS = [list(range(-90, 91, 10)),    # azimuth
-                     10,                          # elevation
-                     1.4,                         # distance
+DEFAULT_POSITIONS = [list(range(-90, 91, 10)),  # azimuth
+                     10,  # elevation
+                     1.4,  # distance
                      ]
 
 
-def pick_hrtf_by_loc(pos_azim=0, pos_elev=0, pos_dist=1.4, interp=False, hrtf_obj=KEMAR_HRTF):
+def pick_hrtf_by_loc(pos_azim=0, pos_elev=0, pos_dist=1.4, interpolate=False, hrtf_obj: slab.HRTF = KEMAR_HRTF):
     """
-    get the indexes as well as the HRTFs corresponding to the positions encoded in [azim, elev]
-    it corresponds to the vertical polar coordinate system of the slab
-    currently the distance should not be changed
-    # TODO: check the interpolation method
-    :param hrtf_obj: hrtf from slab
-    :param pos_azim: list-like, azimuth positions w.r.t. listener, degree
-    :param pos_elev: list-like, elevation positions, degree
-    :param pos_dist: list-like, distance to listener, m
-    :param interp: bool, if interpolate the HRTFs not matching the position. currently broken
-    :return: hrtfs, indexes, positions
+    Returns the indices as well as the HRTFs corresponding to the positions encoded in [pos_azim, pos_elev, pos_dist]
+    It corresponds to slab's vertical polar coordinate system.
+    Currently the distance should not be changed. (why?)
+    # TODO: Implement interpolation (but I think not here, rather in slab to keep everything in the HRTF class)
+    :param hrtf_obj: HRTF from slab
+    :param pos_azim: int or Iterable, azimuth positions w.r.t. listener, degree
+    :param pos_elev: int or Iterable, elevation positions, degree
+    :param pos_dist: int or Iterable, distance to listener, m
+    :param interpolate: bool, if True, interpolate the HRTFs not matching the position. not implemented
+    :return: HRTF object passed through, indices, positions
     """
-    if not isinstance(pos_azim, Sized):
+
+    ## If the input is not an iterable, make it an iterable (could use further checks but works for now)
+    if not isinstance(pos_azim, Iterable):
         pos_azim = [pos_azim]
-    if not isinstance(pos_elev, Sized):
+    if not isinstance(pos_elev, Iterable):
         pos_elev = [pos_elev]
-    if not isinstance(pos_dist, Sized):
+    if not isinstance(pos_dist, Iterable):
         pos_dist = [pos_dist]
 
-    # generate positions using all combinations of [azim, elev, dist]
-    all_pos = []
-    for azim in pos_azim:
-        for elev in pos_elev:
-            for dist in pos_dist:
-                all_pos.append([azim, elev, dist])
+    # generate positions using all combinations of (azim, elev, dist)
+    positions = [list(itertools.product(pos_azim, pos_elev, pos_dist))]
 
-    # get the hrtf indexes
-    hrtf_idx = []
-    for pos in all_pos:
-        # try find the exact match
-        pos_tc = np.array(pos, dtype=hrtf_obj.sources.cartesian.dtype)
-        idx = np.where((hrtf_obj.sources.vertical_polar == pos_tc).all(axis=1))[0]
-        if idx.size > 0:
-            # find match
-            hrtf_idx.append(idx[0])
+    # get the hrtf indices. What are they?? ->
+    hrtf_indices = []
+    for position in positions:
+        # try to find an exact match
+
+        # Shouldn't next line have vertical_polar instead of cartesian?
+        pos_tc = np.array(position, dtype=hrtf_obj.sources.cartesian.dtype)  # produces an array with 1 element
+        # -> np.array([[90, 0, 1.4]])
+
+        # hrtf_obj.sources is a namedtuple ('cartesian vertical_polar interaural_polar') of lists of tuples (coordinates)
+        # hrtf_obj.sources.vertical_polar is a list of coordinates
+        # -> np.array([[-90, 0, 1.4], [-80, 0, 1.4], ..., [90, 0, 1.4]])
+
+        # == on two np arrays returns an array of booleans, broadcasting the smaller array to the larger one
+        # if all elements are true, then azim, elev, and dist are the same and for this pos we have an HRTF
+        # .all works on axis 1, so it checks if all elements in the row are True
+        # -> returns an array of booleans, one for each row with a True where a matching HRTF coordinate was found
+        # We're just interested in the index (not the value) as it's the index in the HRTF object
+        # nonzero returns tuple of arrays, one for each dimension (here 1), containing the indices of the non-zero elements
+        # -> [0] to get the array of indices of the first and only dimension
+
+        idx = np.nonzero((hrtf_obj.sources.vertical_polar == pos_tc).all(axis=1))[0]  # unclear...
+        if idx.size > 0:  # if found
+            hrtf_indices.append(idx[0])  # append the index
         else:
-            # first get nearest neighbor
+            # first get nearest neighbour
             cart_allpos = hrtf_obj.sources.cartesian
-            cart_target = hrtf_obj._vertical_polar_to_cartesian(np.array(pos).reshape(-1, 3))
+            cart_target = hrtf_obj._vertical_polar_to_cartesian(np.array(position).reshape(-1, 3))
             distances = np.sqrt(((cart_target - cart_allpos) ** 2).sum(axis=1))
             idx_nearest = np.argmin(distances)
-            hrtf_idx.append(idx_nearest)
+            hrtf_indices.append(idx_nearest)
 
-    return hrtf_obj, hrtf_idx, all_pos
+    return hrtf_obj, hrtf_indices, positions
 
 
 # default hrtfs
@@ -76,112 +88,124 @@ DEFAULT_HRTF_INFO = pick_hrtf_by_loc(*DEFAULT_POSITIONS, )
 
 def augment_from_wav(file_name, meth='hrtf', **kwargs):
     """
-    use augment_from_array, but directly works on a .wav file
+    Wraps augment_from_array to use .wav files instead of arrays
     :param file_name: path
     :param meth: 'hrtf' or 'room'
     :param kwargs:
     :return:
     """
-    stim, stim_sr = utl.wav_to_array(file_name, rescale=None)
+    stim, stim_sr = utils.wav_to_array(file_name, rescale=None)
     return augment_from_array(stim, stim_sr, meth, **kwargs)
 
 
-def augment_from_array(sig, sample_rate, meth='hrtf', **kwargs):
-    """
-    from a single channel audio signal, generate binaural sounds at different locations
-    :param sig: np.array, single channel audio signal
-    :param sample_rate: Hz
-    :param meth: 'hrtf' or 'room'
-    :param kwargs:
-    :return:
-    """
-    # input checking
-    if 'max_scaling' in kwargs:
-        max_scaling = kwargs['max_scaling']
-    else:
-        max_scaling = 0.1
-    if 'hrtfs' in kwargs:
-        hrtf_sets = kwargs['hrtfs']
-    else:
-        hrtf_sets = DEFAULT_HRTF_INFO
+"""
+We need
+- a way to generate room impulse responses
+- a way to get HRTFs from the different locations that the sound waves reach the ears... how do they do in the paper? HRIRs?
+"""
 
-    # assuming single channel sound
-    if len(sig.shape) == 2:
-        if min(sig.shape) > 1:
+
+# Name: convolve apply signal hrtf plural; applyHRTFs? but probably should be restructured anyways
+def augment_from_array(signal, sample_rate, method='hrtf', max_scaling=0.1, hrtfs=DEFAULT_HRTF_INFO, **kwargs):
+    """
+    - Checks for signal format
+    - Normalizes
+    - Calls function that convolves the signal with the HRTFs
+
+    Given a single channel audio signal, uses an HRTF to generate binaural sounds at different locations.
+    Assumes a single channel, otherwise takes the first channel.
+    TODO: Implement room simulation
+    :param signal: np.array, single channel audio signal
+    :param sample_rate: Hz
+    :param method: 'hrtf' or 'room'
+    :param kwargs:
+    :return: Dictionary of some kind, containing binaural sounds and labels
+    """
+    # hrtfs was hrtf_sets, but it's just passed through, so it shouldn't make any difference
+
+    # Check and correct format of signal
+    if len(signal.shape) == 2:  # length of shape is the number of dimensions, if 2, then it's a stereo sound
+        if min(signal.shape) > 1:  # If the smaller dimension has value of >1 it means there's more than one channel
             warnings.warn('signal contains multiple channels. only take the first channel')
-            if np.argmin(sig.shape) == 0:
-                sig = sig[0]
+            if np.argmin(signal.shape) == 0:  # Get the correct dimension and pick its first channel
+                signal = signal[0]
             else:
-                sig = sig[:, 0]
-        else:
-            sig = sig.ravel()
-    if len(sig.shape) > 2:
+                signal = signal[:, 0]
+        else:  # If the smaller dimension is 1, it's a single channel, but packed in the shape of (1, n_samples), so ravel it to make it a 1D array
+            signal = signal.ravel()
+    if len(signal.shape) > 2:  # More than 2 dimensions, doesn't make sense
         raise ValueError('signal has more than 2 dimensions')
-    # ideally we only work with short sounds (<5s), otherwise take too much space
-    if len(sig) / sample_rate > 5:
-        warnings.warn('signal is more than 5s long. could be RAM consuming')
+    if len(signal) / sample_rate > 5:  # Raise warning if the sound is longer than 5s
+        warnings.warn(f'Signal is more than 5s long ({len(signal) / sample_rate}s). May consume a lot of memory.')
 
     # first normalize the signal
     # TODO: does it make sense to do the normalization here?
-    sig = max_scaling * utl.rescale_sound(sig, 'normalize')
+    signal = max_scaling * utils.rescale_sound(signal, 'normalize')
 
     # generate localized sound
-    if meth == 'hrtf':
-        res = simulate_from_hrtf(sig, sample_rate, hrtf_sets, **kwargs)
-    elif meth == 'room':
+    if method == 'hrtf':
+        return simulate_from_hrtf(signal, sample_rate, hrtfs, **kwargs)
+    elif method == 'room':
         raise NotImplementedError('Room simulation not implemented yet')
     else:
-        raise ValueError('method: {} not known'.format(meth))
-    return res
+        raise ValueError(f'method: {method} not known')
 
 
 def simulate_from_room():
     pass
 
 
-def simulate_from_hrtf(sig, sig_sr, HRTFs, target_sr=48000, **kwargs):
+def simulate_from_hrtf(sig, sig_sample_rate, hrtf_tuple, target_sample_rate=48000, **kwargs):
     """
+    - Checks and adjusts sample rate of signal and HRTFs
+    - For each position in hrtf_tuple, applies the corresponding HRTF to the signal
+    - Adds labels and saves the data in a dictionary which itself is saved in a list that is returned
+
     generate binaural sounds from different HRTFs
     :param sig: np.array, single channel audio signal
-    :param sig_sr: sample rate of the signal, Hz
-    :param HRTFs: output from pick_hrtf_by_loc
-    :param target_sr: target sample rate, Hz
-    :return:
+    :param sig_sample_rate: sample rate of the signal, Hz
+    :param hrtf_tuple: output from pick_hrtf_by_loc, tuple: (hrtf_obj, hrtf_indices, positions)
+    :param target_sample_rate: target sample rate, Hz
+    :return: a list of dictionaries containing a binaural signal and its corresponding dictionary of labels
     """
-    # first need to make sure the signal and the filters have the same sample rate as target
-    hrtf_sr = HRTFs[0].samplerate
-    HRTF_filters = deepcopy(HRTFs[0])
-    # check to see if need to resample the HRTFs
-    if hrtf_sr != target_sr:
-        for idx, hrtf_info in enumerate(HRTF_filters):
-            HRTF_filters[idx] = hrtf_info.resample(target_sr)
-    if sig_sr != target_sr:
-        sig = resample(sig, target_sr, sig_sr, As=75, N=64001)
+    hrtf_obj, hrtf_indices, positions = hrtf_tuple
+    # What is hrtf_obj? Seems to be multiple HRTFs... look at slab docs; or just because it's 2 for 2 ears? yes! but technically could be more than 2.
 
-    selected_hrtfs = HRTFs[1:]
+    hrtf_filters: slab.HRTF = deepcopy(hrtf_obj)  # Deepcopy as to not touch the original HRTF object
+
+    # Resample if needed
+    if hrtf_filters.samplerate != target_sample_rate:
+        for idx, hrtf_info in enumerate(hrtf_filters):
+            hrtf_filters[idx] = hrtf_info.resample(target_sample_rate)
+    if sig_sample_rate != target_sample_rate:
+        sig = resample(sig, target_sample_rate, sig_sample_rate, As=75, N=64001)
+
+    # TODO: Rather use named tuples?
     sig_dicts = []
-    # slab functions need slab data types to work
-    slab_sig = slab.Sound(sig, samplerate=target_sr)
-    for hrtf_idx, pos in zip(*selected_hrtfs):
-        bi_sig = HRTF_filters.apply(hrtf_idx, slab_sig)
+    slab_sig = slab.Sound(sig, samplerate=target_sample_rate)  # Convert to slab's Sound data type
+    for hrtf_idx, pos in zip(hrtf_indices, positions):
+        bi_sig = hrtf_filters.apply(hrtf_idx, slab_sig)
         # label for current stim
-        lb_dict = {'azim': int(pos[0]),
-                   'elev': int(pos[1]),
-                   'dist': float(pos[2]),
-                   'sampling_rate': target_sr,
-                   'hrtf_idx': int(hrtf_idx),
-                   'cnn_idx': loc_to_CNNpos(pos[0], pos[1])}
+        lb_dict = {'azim': int(pos[0]), 'elev': int(pos[1]), 'dist': float(pos[2]), 'sampling_rate': target_sample_rate,
+                   'hrtf_idx': int(hrtf_idx), 'cnn_idx': loc_to_CNNpos(pos[0], pos[1])}
         # add additional labels if needed
         if 'extra_lbs' in kwargs:
             lb_dict.update(kwargs['extra_lbs'])
-        sig_dicts.append({'sig': bi_sig.data,
-                          'label': lb_dict})
+        sig_dicts.append({'sig': bi_sig.data, 'label': lb_dict})
 
     return sig_dicts
 
 
 def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=1, n_sample=None, **kwargs):
     """
+    - Picks closest HRTFs for the given positions
+    - Calls augment_from_array to render the stimuli
+        - if one sound, applies the HRTFs for the given positions
+        - if multiple sounds, randomly selects a subset and separately applies the HRTFs for the given positions
+    - Adds the HRTF-applied stimuli to a list (repeating each n_reps times) along with labels and returns the list
+    -> List of dictionaries, each containing a binaural signal and its corresponding label dictionary
+
+
     Renders stimuli with spatial audio effects.
 
     Args:
@@ -211,9 +235,11 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=1, n_sampl
 
     stims_rendered = []  # Store the rendered stimuli
 
+    # Apply HRTFs
     if isinstance(orig_stim, slab.Sound):
         # If the original stimulus is a single sound
-        stims_rendered.extend(augment_from_array(orig_stim.data, sample_rate=orig_stim.samplerate, hrtfs=hrtf_sets, **kwargs))
+        stims_rendered.extend(
+            augment_from_array(orig_stim.data, sample_rate=orig_stim.samplerate, hrtfs=hrtf_sets, **kwargs))
     elif isinstance(orig_stim, list):
         # If the original stimulus is a list of sounds, randomly select a subset for rendering
         if not n_sample:
@@ -229,7 +255,7 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=1, n_sampl
     for rep in range(n_reps):
         # Repeat each stimulus 'n_reps' times to match the original experiment
         for stim_dict in stims_rendered:
-            sig = slab.Binaural(stim_dict['sig'], samplerate=sig_rate)
+            sig = slab.Binaural(stim_dict['sig'], samplerate=sig_rate)  # Why cast to Binaural if later we just use .data?
             label_dict = deepcopy(stim_dict['label'])
 
             # Apply spatial audio effects
@@ -247,7 +273,6 @@ if __name__ == "__main__":
     from stim_util import zero_padding
     from show_subbands import show_subbands
 
-
     samplerate = 44100  # initial samplerate for CNN
     sound = slab.Sound.pinknoise(0.5, samplerate=samplerate)
     sound = zero_padding(sound, goal_duration=2.1, type="frontback")
@@ -259,13 +284,9 @@ if __name__ == "__main__":
     hrtf_sets = pick_hrtf_by_loc(pos_azim=pos_azim, pos_elev=pos_elev, hrtf_obj=KEMAR_HRTF)
     stims_rendered.extend(augment_from_array(sound.data, sample_rate=sound.samplerate, hrtfs=hrtf_sets))
 
-
     for i, stm in enumerate(stims_rendered):
         label = stm["label"]
         print(f"Stim {i}: {label}")
         slab.Binaural(stm["sig"], samplerate=samplerate).play()
         show_subbands(slab.Binaural(stm["sig"], samplerate=samplerate))
         plt.show(block=True)
-
-
-
