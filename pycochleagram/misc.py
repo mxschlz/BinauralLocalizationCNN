@@ -8,7 +8,7 @@ import numpy as np
 from math import ceil
 from multiprocessing import Process, Queue, Pool
 
-# from joblib import Parallel, delayed
+from joblib import Parallel, delayed
 import os
 import scipy.io.wavfile as wav
 
@@ -35,22 +35,22 @@ import keras.utils
 # #     self.data_src = data_src
 
 
-# def wrapped_subband_memmap(signal, out_array, start_idx, end_idx):
-#   sr = 30000
-#   n = 38
-#   low_lim = 50
-#   high_lim = 15000
-#   sample_factor = 1
-#   downsample = 6000
-#   nonlinearity = 'db'
-#   downsample = None
-#   nonlinearity = None
+def wrapped_subband_memmap(signal, out_array, start_idx, end_idx):
+  sr = 30000
+  n = 38
+  low_lim = 50
+  high_lim = 15000
+  sample_factor = 1
+  downsample = 6000
+  nonlinearity = 'db'
+  downsample = None
+  nonlinearity = None
 
-#   # out_array[start_idx:end_idx] = cgram.human_cochleagram(signal[start_idx:end_idx], sr, n=n, low_lim=low_lim, hi_lim=high_lim,
-#   out_array[start_idx:end_idx] = cgram.human_cochleagram(signal, sr, n=n, low_lim=low_lim, hi_lim=high_lim,
-#     sample_factor=sample_factor, pad_factor=None, downsample=downsample, nonlinearity=nonlinearity,
-#     fft_mode='np', ret_mode='subband', strict=True).astype(np.float32)
-#   out_array.flush()
+  # out_array[start_idx:end_idx] = cgram.human_cochleagram(signal[start_idx:end_idx], sr, n=n, low_lim=low_lim, hi_lim=high_lim,
+  out_array[start_idx:end_idx] = cgram.human_cochleagram(signal, sr, n=n, low_lim=low_lim, hi_lim=high_lim,
+    sample_factor=sample_factor, pad_factor=None, downsample=downsample, nonlinearity=nonlinearity,
+    fft_mode='np', ret_mode='subband', strict=True).astype(np.float32)
+  out_array.flush()
 
 
 # def wrapped_subband(signal):
@@ -75,43 +75,43 @@ import keras.utils
 #   # return None
 
 
-# def run_francl_test(in_dir, n_per_batch=8, num_workers=8):
-#   num_workers = 8
-#   # fntp_all = np.vstack([wav.read(os.path.join(in_dir,f))[1][:30000].swapaxes(1,0) for f in os.listdir(in_dir) if f.endswith('.wav')])
-#   fntp_all = [wav.read(os.path.join(in_dir,f))[1][:30000].swapaxes(1,0) for f in os.listdir(in_dir) if f.endswith('.wav')]
-#   # fntp = [os.path.join(in_dir, f) for f in os.listdir(in_dir) if f.endswith('.wav')]
-#   with Parallel(n_jobs=num_workers) as parallel:
-#     # cgram_shape = utils.compute_cochleagram_shape(x_dataset.shape[1], sr, n, sample_factor, downsample)
-#     # cgram_shape = (batch_size, *cgram_shape)
+def run_francl_test(in_dir, n_per_batch=8, num_workers=8):
+  num_workers = 8
+  # fntp_all = np.vstack([wav.read(os.path.join(in_dir,f))[1][:30000].swapaxes(1,0) for f in os.listdir(in_dir) if f.endswith('.wav')])
+  fntp_all = [wav.read(os.path.join(in_dir,f))[1][:30000].swapaxes(1,0) for f in os.listdir(in_dir) if f.endswith('.wav')]
+  # fntp = [os.path.join(in_dir, f) for f in os.listdir(in_dir) if f.endswith('.wav')]
+  with Parallel(n_jobs=num_workers) as parallel:
+    # cgram_shape = utils.compute_cochleagram_shape(x_dataset.shape[1], sr, n, sample_factor, downsample)
+    # cgram_shape = (batch_size, *cgram_shape)
 
-#     cgram_shape = (n_per_batch * 2, 40, 30000)
-#     print(cgram_shape)
-#     folder = tempfile.mkdtemp()
-#     out = os.path.join(folder, 'cgram_out')
-#     cgram_memmap = np.memmap(out, dtype=np.float32, shape=cgram_shape, mode='w+')
+    cgram_shape = (n_per_batch * 2, 40, 30000)
+    print(cgram_shape)
+    folder = tempfile.mkdtemp()
+    out = os.path.join(folder, 'cgram_out')
+    cgram_memmap = np.memmap(out, dtype=np.float32, shape=cgram_shape, mode='w+')
 
-#     idx = 0
-#     while True:
-#       idx += 1
-#       list_start_ind = idx * n_per_batch
-#       list_end_ind = (idx + 1) * n_per_batch
-#       fntp = np.vstack(fntp_all[list_start_ind:list_end_ind])
+    idx = 0
+    while True:
+      idx += 1
+      list_start_ind = idx * n_per_batch
+      list_end_ind = (idx + 1) * n_per_batch
+      fntp = np.vstack(fntp_all[list_start_ind:list_end_ind])
 
-#       batch_size = fntp.shape[0]
-#       start_ind = list_start_ind * 2
-#       end_ind = list_end_ind * 2
-#       subbatch_size = ceil(batch_size / num_workers)
-#       subbatch_idx_list = [(x*subbatch_size, (x+1)*subbatch_size) for x in range(num_workers)]
-#       print('memmap cgram out shape ', cgram_shape, '[%s, %s]' % (start_ind, end_ind), subbatch_idx_list, fntp.shape)
-#       # pdb.set_trace()
-#       start_time = time.time()
-#       parallel(delayed(wrapped_subband_memmap)(fntp[start:end], cgram_memmap, start, end) for start, end in subbatch_idx_list)
-#       results = cgram_memmap
-#       # results = np.vstack(parallel(delayed(wrapped_subband)(fntp[start:end]) for start, end in subbatch_idx_list))
-#       # wrapped_subband(fntp)
-#       print(results.shape)
-#       print(time.time() - start_time)
-#       yield results
+      batch_size = fntp.shape[0]
+      start_ind = list_start_ind * 2
+      end_ind = list_end_ind * 2
+      subbatch_size = ceil(batch_size / num_workers)
+      subbatch_idx_list = [(x*subbatch_size, (x+1)*subbatch_size) for x in range(num_workers)]
+      print('memmap cgram out shape ', cgram_shape, '[%s, %s]' % (start_ind, end_ind), subbatch_idx_list, fntp.shape)
+      # pdb.set_trace()
+      start_time = time.time()
+      parallel(delayed(wrapped_subband_memmap)(fntp[start:end], cgram_memmap, start, end) for start, end in subbatch_idx_list)
+      results = cgram_memmap
+      # results = np.vstack(parallel(delayed(wrapped_subband)(fntp[start:end]) for start, end in subbatch_idx_list))
+      # wrapped_subband(fntp)
+      print(results.shape)
+      print(time.time() - start_time)
+      yield results
 
 
 ######## raygon ########
@@ -178,70 +178,70 @@ def wrapped_cochleagram_main(signal, extra_data=[]):
   return (out, labels)
 
 
-# def queued_generator_subbatched_helper(output_queue, data_src, callback_fx, num_epochs, batch_size, num_workers, extra_data_src_list=[]):
-#   subbatch_size = ceil(batch_size / num_workers)
-#   num_per_epoch = len(data_src) // batch_size
+def queued_generator_subbatched_helper(output_queue, data_src, callback_fx, num_epochs, batch_size, num_workers, extra_data_src_list=[]):
+  subbatch_size = ceil(batch_size / num_workers)
+  num_per_epoch = len(data_src) // batch_size
 
-#   cgram_shape = utils.compute_cochleagram_shape(data_src.shape[1], 48000, 38, 4, 6000)
-#   cgram_shape = (batch_size, *cgram_shape)
-#   print('memmap cgram out shape ', cgram_shape)
-#   # folder = tempfile.mkdtemp()
-#   # out = os.path.join(folder, 'cgram_out')
-#   # batch_data_memmap = np.memmap(out, dtype=np.float32, shape=cgram_shape, mode='r+')
+  cgram_shape = utils.compute_cochleagram_shape(data_src.shape[1], 48000, 38, 4, 6000)
+  cgram_shape = (batch_size, *cgram_shape)
+  print('memmap cgram out shape ', cgram_shape)
+  # folder = tempfile.mkdtemp()
+  # out = os.path.join(folder, 'cgram_out')
+  # batch_data_memmap = np.memmap(out, dtype=np.float32, shape=cgram_shape, mode='r+')
 
-#   def output_callback(worker_data):
-#     # print('CALLBACK ---->>>', worker_data)
-#     print(output_queue)
-#     output_queue.put(worker_data)
+  def output_callback(worker_data):
+    # print('CALLBACK ---->>>', worker_data)
+    print(output_queue)
+    output_queue.put(worker_data)
 
-#   pool = Pool(processes=num_workers)
-#   do_loop = True
-#   while do_loop:
-#     for epoch in range(num_epochs):
-#       for idx in range(num_per_epoch):
-#         print('>>>> E: %s B: %s/%s' % (epoch + 1, idx + 1, num_per_epoch))
+  pool = Pool(processes=num_workers)
+  do_loop = True
+  while do_loop:
+    for epoch in range(num_epochs):
+      for idx in range(num_per_epoch):
+        print('>>>> E: %s B: %s/%s' % (epoch + 1, idx + 1, num_per_epoch))
 
-#         # compute the slice of the dataset
-#         start_idx = idx * batch_size
-#         end_idx = (idx + 1) * batch_size
-#         batch_data = data_src[start_idx:end_idx]
+        # compute the slice of the dataset
+        start_idx = idx * batch_size
+        end_idx = (idx + 1) * batch_size
+        batch_data = data_src[start_idx:end_idx]
 
-#         # break the slice into sub-slices for multiprocessing
-#         subbatch_idx_list = [(x * subbatch_size, (x + 1) * subbatch_size) for x in range(num_workers)]
-#         print('[%s, %s]' % (start_idx, end_idx), subbatch_idx_list)
-#         # print(batch_data.shape)
+        # break the slice into sub-slices for multiprocessing
+        subbatch_idx_list = [(x * subbatch_size, (x + 1) * subbatch_size) for x in range(num_workers)]
+        print('[%s, %s]' % (start_idx, end_idx), subbatch_idx_list)
+        # print(batch_data.shape)
 
-#         # generate cochleagrams on the sub-slices
-#         # deferred = [pool.apply_async(callback_fx, (batch_data[start:end], batch_data_memmap),) for start, end in subbatch_idx_list]
-#         deferred = [pool.apply(wrapped_cochleagram, (batch_data[start:end],)) for start, end in subbatch_idx_list]
-#         # deferred = [pool.apply_async(wrapped_cochleagram, (batch_data[start:end],), callback=output_callback) for start, end in subbatch_idx_list]
-#         # deferred = [pool.apply_async(wrapped_cochleagram_memmap, (batch_data[start:end], batch_data_memmap, start, end)) for start, end in subbatch_idx_list]
-#         # deferred = [pool.apply(wrapped_cochleagram_memmap, (batch_data[start:end], batch_data_memmap, start, end),) for start, end in subbatch_idx_list]
-#         test = ([d.get() for d in deferred])
-#         # print(test)
+        # generate cochleagrams on the sub-slices
+        # deferred = [pool.apply_async(callback_fx, (batch_data[start:end], batch_data_memmap),) for start, end in subbatch_idx_list]
+        deferred = [pool.apply(wrapped_cochleagram, (batch_data[start:end],)) for start, end in subbatch_idx_list]
+        # deferred = [pool.apply_async(wrapped_cochleagram, (batch_data[start:end],), callback=output_callback) for start, end in subbatch_idx_list]
+        # deferred = [pool.apply_async(wrapped_cochleagram_memmap, (batch_data[start:end], batch_data_memmap, start, end)) for start, end in subbatch_idx_list]
+        # deferred = [pool.apply(wrapped_cochleagram_memmap, (batch_data[start:end], batch_data_memmap, start, end),) for start, end in subbatch_idx_list]
+        test = ([d.get() for d in deferred])
+        # print(test)
 
 
-#         # slice any extra data
-#         batch_extra = [x[start_idx:end_idx] for x in extra_data_src_list]
-#         # print(batch_extra)
+        # slice any extra data
+        batch_extra = [x[start_idx:end_idx] for x in extra_data_src_list]
+        # print(batch_extra)
 
-#         # reassemble the subslices
-#         # **NOTE: due to the nature of apply_async, the sub-slices might
-#         # appear in a different order than they are in the slice, though the
-#         # entire slice data is the same (data but not order is preserved within a slice/batch)
-#         # batch_data = np.vstack([d.get() for d in deferred])
-#         # print(batch_data.shape)
-#         # print(np.unique(np.array(batch_data_memmap)))
+        # reassemble the subslices
+        # **NOTE: due to the nature of apply_async, the sub-slices might
+        # appear in a different order than they are in the slice, though the
+        # entire slice data is the same (data but not order is preserved within a slice/batch)
+        # batch_data = np.vstack([d.get() for d in deferred])
+        # print(batch_data.shape)
+        # print(np.unique(np.array(batch_data_memmap)))
 
-#         # output_queue.put((batch_data, *batch_extra))
-#         # output_queue.put((batch_data_memmap.copy(), *batch_extra))
-#     do_loop = False
-#   pool.terminate()
-#   # pool.close()
-#   pool.join()
+        # output_queue.put((batch_data, *batch_extra))
+        # output_queue.put((batch_data_memmap.copy(), *batch_extra))
+    do_loop = False
+  pool.terminate()
+  # pool.close()
+  pool.join()
 
-#   output_queue.close()
-#   # output_queue.join_thread()
+  output_queue.close()
+  # output_queue.join_thread()
 
 
 # def queued_generator_subbatched(data_src, callback_fx, num_epochs, batch_size, num_workers, extra_data_src_list=[], queue_prewait_seconds=0):

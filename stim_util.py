@@ -1,13 +1,24 @@
 from pycochleagram import utils as utl
 import slab
 import numpy as np
+import numpy.typing as npt
 from nnresample import resample
 
 
-def hanning_window(stim, ramp_duration_ms, SAMPLERATE=48000):
+def apply_hanning_window(stim, ramp_duration_ms, sample_rate=48000):
+    """
+    Apply hanning window to the stimulus
+    Args:
+        stim:
+        ramp_duration_ms:
+        sample_rate:
+
+    Returns:
+    """
+
     stim_np = np.array(stim)
     stim_dur_smp = stim_np.shape[0]
-    ramp_dur_smp = int(np.floor(ramp_duration_ms*SAMPLERATE/1000))
+    ramp_dur_smp = int(np.floor(ramp_duration_ms * sample_rate / 1000))
     hanning_window = np.hanning(ramp_dur_smp*2)
     onset_win = stim_np[:ramp_dur_smp] * hanning_window[:ramp_dur_smp]
     middle = stim_np[ramp_dur_smp:stim_dur_smp-ramp_dur_smp]
@@ -89,17 +100,17 @@ def loc_to_CNNpos(azim, elev, elev_range=(0, 60), bin_size=5):
 def zero_padding(stim, type="front", goal_duration=2.1):
     if not isinstance(stim, slab.Sound):
         raise ValueError("stimulus must be instance of slab.Sound!")
-    curr_length_ns = stim.n_samples
+    curr_n_samples = stim.n_samples
     if type == "frontback":
-        missing_length_ns = int((goal_duration * stim.samplerate - curr_length_ns) / 2)
+        missing_length_ns = int((goal_duration * stim.samplerate - curr_n_samples) / 2)
         padding = slab.Sound.silence(missing_length_ns, stim.samplerate, stim.n_channels)
         return slab.Sound.sequence(padding, stim, padding)
     elif type == "front":
-        missing_length_ns = int((goal_duration * stim.samplerate - curr_length_ns))
+        missing_length_ns = int((goal_duration * stim.samplerate - curr_n_samples))
         padding = slab.Sound.silence(missing_length_ns, stim.samplerate, stim.n_channels)
         return slab.Sound.sequence(padding, stim)
     elif type == "back":
-        missing_length_ns = int((goal_duration * stim.samplerate - curr_length_ns))
+        missing_length_ns = int((goal_duration * stim.samplerate - curr_n_samples))
         padding = slab.Sound.silence(missing_length_ns, stim.samplerate, stim.n_channels)
         return slab.Sound.sequence(stim, padding)
 

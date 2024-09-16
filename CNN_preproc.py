@@ -10,7 +10,7 @@ currently down sampling uses tensorflow conv2d
 """
 import matplotlib.pyplot as plt
 
-from stim_util import hanning_window, normalize_binaural_stim
+from stim_util import apply_hanning_window, normalize_binaural_stim
 
 import tensorflow as tf
 import numpy as np
@@ -77,8 +77,8 @@ def cochleagram_wrapper(stim, signal_rate=48000,
 
     # Apply a hanning window to the stimulus
     if hanning_windowed:
-        hann_r = hanning_window(stim_wav[1], 20, SAMPLERATE=44100)
-        hann_l = hanning_window(stim_wav[0], 20, SAMPLERATE=44100)
+        hann_r = apply_hanning_window(stim_wav[1], 20, sample_rate=44100)
+        hann_l = apply_hanning_window(stim_wav[0], 20, sample_rate=44100)
         r_channel = hann_r
         l_channel = hann_l
     else:
