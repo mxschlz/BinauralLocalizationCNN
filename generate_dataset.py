@@ -202,7 +202,7 @@ def main():
     # sys.exit(0)
 
     # brir_dict = pickle.load(open('brir_dict_2024-09-11_13-51-58.pkl', 'rb'))
-    stim_paths = list(Path('uso_500ms_raw').glob('*.wav'))
+    stim_paths = list(Path('resources/uso_500ms_raw').glob('*.wav'))
     path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
     print(stim_paths)
     # One process
@@ -267,14 +267,10 @@ def main():
     - First: save to tfrecord and see how much space it takes (later: maybe use online augmentation)
     - Test if data can be used to train the CNN
 
-
-    Data! https://mcdermottlab.mit.edu/downloads.html
-    165 2-sec sounds: https://mcdermottlab.mit.edu/svnh/Natural-Sound/Stimuli.html
-    168 7-sec textures, although 20kHz
-    Matlab Code for texture generation!
-    pychochleagram code for vanilla python, tensorflow, and pytorch
-
-
+    McDermott's website:
+    - Datasets for stimuli and textures
+    - Matlab Code for texture generation!
+    - pychochleagram code for vanilla python, tensorflow, and pytorch
 
     Notes:
     - My BRIR gen is much faster than in the paper. Unsure why.

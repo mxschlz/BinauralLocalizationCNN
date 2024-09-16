@@ -1,5 +1,10 @@
-# Mammutmap, feel free to remove this line to share the map via Git
-/map/
+.idea/
+
+data/
+resources/*/
+!resources/README_resources.md
+.DS_Store
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
