@@ -1,23 +1,24 @@
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
-from NetBuilder import NetBuilder
-
-import os
-import glob
-import tensorflow as tf
-import numpy as np
 import collections
 import csv
-from copy import deepcopy
-import time
+import glob
+import json
+import os
 # from CNN_util import freeze_session
 import pdb
-import json
-from analysis_and_plotting.decision_rule import decide_sound_presence
-from augment import apply_random_augmentation
+import time
+from copy import deepcopy
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.python.ops import gradients
 
 # custom memory saving gradient
 import memory_saving_gradients
-from tensorflow.python.ops import gradients
+from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
+from NetBuilder import NetBuilder
+from analysis_and_plotting.decision_rule import decide_sound_presence
+from augment import apply_random_augmentation
+
 # import mem_util
 
 # this controls CUDA convolution optimization
@@ -71,8 +72,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     is_msl = cfg["DEFAULT_COST_PARAM"]["multi_source_localization"]  # check whether multi-source localization applies
     # from the stim_dset, create a batched data iterator
     batch_size = run_params['batch_size']  # use batch size of 16 (default)
-    batch_size_tf = tf.constant(batch_size, dtype=tf.int64)  #  make tf constant
-    stim_dset = stim_dset.shuffle(buffer_size=batch_size).batch(batch_size=batch_size_tf, drop_remainder=True)  #  always shuffle
+    batch_size_tf = tf.constant(batch_size, dtype=tf.int64)  # make tf constant
+    stim_dset = stim_dset.shuffle(buffer_size=batch_size).batch(batch_size=batch_size_tf,
+                                                                drop_remainder=True)  # always shuffle
     stim_iter = stim_dset.make_initializable_iterator()
     data_samp = stim_iter.get_next()
 
@@ -81,7 +83,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     for k, v in data_samp.items():
         if k not in ('train/image', 'train/image_height', 'train/image_width'):
             data_label[k] = data_samp[k]
-    augment = ds_params["augment"]  #  check whether data augmentation applies
+    augment = ds_params["augment"]  # check whether data augmentation applies
     if augment is True:
         data_samp["train/image"] = apply_random_augmentation(data_samp["train/image"])  # apply random augmentation
 
@@ -141,8 +143,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         late_layers = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)[first_fc_idx:]
     with tf.control_dependencies(update_ops):
         if is_msl:
-            update_grads = (tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],epsilon=1e-4)
-                            .minimize(cost,var_list=late_layers))  # only update late layers
+            update_grads = (tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'], epsilon=1e-4)
+                            .minimize(cost, var_list=late_layers))  # only update late layers
         else:
             update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
                                                   epsilon=1e-4).minimize(cost)
@@ -164,9 +166,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     eval_keys = list(data_label.keys())  # keys
     eval_vars = list(data_label.values())  # variables
 
-    testing = run_params["testing"]  #  whether testing
+    testing = run_params["testing"]  # whether testing
     validating = run_params["validating"]  # whether validation
-    training = run_params["training"]  #  whether training
+    training = run_params["training"]  # whether training
     model_version = run_params['model_version']  # model version 100000 from Francl 2022
     auc_results = dict()
     if validating:  # basically like training but without updating weights
@@ -250,7 +252,8 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
     elif training:
         # search for dense layer weights or posterior
         # get variable list for restoring in saver
-        newpath = os.path.join(net_weights + "_MSL/" + net_name)  # this folder leads to new directory (change for your paradigm)
+        newpath = os.path.join(
+            net_weights + "_MSL/" + net_name)  # this folder leads to new directory (change for your paradigm)
         display_step = run_params["display_step"]  # display interim results during training
         sess.run(stim_iter.initializer)
         # saver = tf.train.Saver(max_to_keep=None, var_list=var_list)
@@ -356,5 +359,3 @@ if __name__ == '__main__':
     stim_tfrecs = os.path.join("*test_azi*.tfrecords")
     res_name = os.path.join('Result', 'NumJudge_result')
     run_CNN(stim_tfrecs, first_net_path, res_name)
-
-

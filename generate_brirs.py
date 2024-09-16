@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 Listener height and source distance are always 1.4m, so they are not included in the NamedTuples.
 """
 
+
 class CartesianCoordinates(NamedTuple):
     x: float
     y: float

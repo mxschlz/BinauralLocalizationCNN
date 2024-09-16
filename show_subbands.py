@@ -1,8 +1,18 @@
-from CNN_preproc import normalize_binaural_stim, cochleagram_wrapper
 import numpy as np
+
+from CNN_preproc import normalize_binaural_stim, cochleagram_wrapper
 
 
 def show_subbands(sig_bi):
+    """
+    Visualize the subbands of the cochleagram
+
+    Args:
+        sig_bi:
+
+    Returns:
+
+    """
     import matplotlib.pyplot as plt
 
     sig_norm = normalize_binaural_stim(sig_bi.data,
@@ -30,12 +40,9 @@ def show_subbands(sig_bi):
     plt.show()
 
 
-if __name__ == "__main__":
+def main() -> None:
     from stim_gen import render_stims
     import slab
-    from stim_util import zero_padding
-    import seaborn as sns
-    import scienceplots
     import matplotlib.pyplot as plt
 
     plt.style.use("science")
@@ -52,7 +59,7 @@ if __name__ == "__main__":
     sig_norm = normalize_binaural_stim(sound_bi.data,
                                        sound_bi.samplerate)
     subbands = cochleagram_wrapper(sig_norm[0], sig_norm[1], sliced=True)
-    t = np.arange(48000)/48000
+    t = np.arange(48000) / 48000
 
     diff = subbands[:, :, 0] - subbands[:, :, 1]
 
@@ -76,3 +83,7 @@ if __name__ == "__main__":
     plt.tight_layout()
 
     plt.savefig("/home/max/labplatform/plots/MA_thesis/materials_methods/waveform_spectrum_cochleagram.png")
+
+
+if __name__ == "__main__":
+    main()

@@ -19,7 +19,8 @@ CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n
                                       'testing': True,
                                       'model_version':
                                           [str(x) for x in range(CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["checkpoint_step"],
-                                                                 CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["total_steps"]+1,
-                                                                 CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["checkpoint_step"])]},
+                                                                 CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["total_steps"] + 1,
+                                                                 CONFIG_TRAIN["DEFAULT_RUN_PARAM"][
+                                                                     "checkpoint_step"])]},
                    DEFAULT_DATA_PARAM={"augment": False}
                    )

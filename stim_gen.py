@@ -1,24 +1,24 @@
+import itertools
+import pickle
 import random
 import warnings
-
-import numpy as np
-from typing import Iterable
-
-from matplotlib import pyplot as plt
-
-from generate_dataset import main
-from stim_util import loc_to_CNNpos
-from nnresample import resample
-import slab
 # import pyroomacoustics as pra
 from copy import deepcopy
-from stim_manipulation import change_itd
+from typing import Iterable
+
+import numpy as np
+import slab
+from matplotlib import pyplot as plt
+from nnresample import resample
+
 from pycochleagram import utils
-import itertools
+from stim_util import loc_to_CNNpos
 
 # use Kemar HRTF
 KEMAR_HRTF = slab.HRTF.kemar()
 KEMAR_SAMPLERATE = KEMAR_HRTF.samplerate
+
+
 # source locations are in hrtf.sources, centered on listener
 
 # Deprecated: Not needed anymore, also slab.HRTF has a method to pick the HRTF by location
@@ -116,7 +116,6 @@ def augment_from_array(signal, sample_rate, method='hrtf', max_scaling=0.1, hrtf
     :return: Dictionary of some kind, containing binaural sounds and labels
     """
     pass
-
 
     # hrtfs was hrtf_sets, but it's just passed through, so it shouldn't make any difference
 
@@ -263,7 +262,42 @@ def render_stims(orig_stim, pos_azim, pos_elev, hrtf_obj=None, n_reps=1, n_sampl
     return stims_final
 
 
-if __name__ == "__main__":
+_ils = pickle.load(open('interaural_level_spectrum/ils.pickle', 'rb'))  # load interaural level spectrum
+
+
+def change_itd(stim, azi):
+    """ Old main function to test:
+    stim = slab.Binaural.whitenoise()
+    plt.plot(stim.data[:, 0])
+    plt.plot(stim.data[:, 1])
+    stim.itd()
+    stim.ild()
+    azi = 45  # azimuth in degrees
+    stim = change_itd(stim, azi)
+    stim = change_ild(stim, azi)
+
+    Args:
+        stim:
+        azi:
+
+    Returns:
+
+    """
+    if not isinstance(stim, slab.Binaural):
+        raise ValueError("Stimulus must be instance of slab.Binaural")
+    itd = slab.Binaural.azimuth_to_itd(azi)
+    itd_ns = int(round(itd * stim.samplerate))
+    return stim.itd(itd_ns)
+
+
+def change_ild(stim, azi):
+    if not isinstance(stim, slab.Binaural):
+        raise ValueError("Stimulus must be instance of slab.Binaural")
+    ild = slab.Binaural.azimuth_to_ild(azi, ils=_ils)
+    return stim.ild(stim.ild() + ild)
+
+
+def main() -> None:
     from stim_util import zero_padding
     from show_subbands import show_subbands
 
@@ -284,3 +318,7 @@ if __name__ == "__main__":
         slab.Binaural(stm["sig"], samplerate=samplerate).play()
         show_subbands(slab.Binaural(stm["sig"], samplerate=samplerate))
         plt.show(block=True)
+
+
+if __name__ == "__main__":
+    main()

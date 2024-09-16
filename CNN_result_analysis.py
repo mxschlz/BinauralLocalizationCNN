@@ -1,13 +1,12 @@
-import matplotlib
-import slab
-
 import csv
 import glob
 import os
+from copy import deepcopy
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from copy import deepcopy
+import slab
 from scipy import stats as sstats
 
 
@@ -152,7 +151,6 @@ def _simulate_f1_humandata(data_excel, ns_bin=100):
 
 
 def result_figure2(model_data_patt):
-
     label, md_data = read_resfiles(model_data_patt)
     md_data = np.concatenate(md_data, axis=0)
 
@@ -177,7 +175,7 @@ def result_figure2(model_data_patt):
     sig = slab.Binaural(sig)
     exp_sig = []
     for cf in cfs:
-        fl = [cf/2**(bw[0]/2), cf*2**(bw[0]/2)]
+        fl = [cf / 2 ** (bw[0] / 2), cf * 2 ** (bw[0] / 2)]
         filt = slab.Filter.band('bp', frequency=tuple(fl),
                                 samplerate=sr, length=2048)
         exp_sig.append(filt.apply(sig))
@@ -221,7 +219,7 @@ def result_figure2(model_data_patt):
         for x, ys in zip([itd_vals, ild_vals], [res_itd[cf_idx], res_ild[cf_idx]]):
             ax_r, ax_c = divmod(ax_ct, 2)
             y_mean = [np.array(y).mean() for y in ys]
-            y_se = [np.array(y).std()/len(y)**0.5 for y in ys]
+            y_se = [np.array(y).std() / len(y) ** 0.5 for y in ys]
             # plot
             ax[ax_r][ax_c].errorbar(x[::-1], y_mean, y_se)
             if ax_ct in (0, 2):
@@ -244,7 +242,6 @@ def result_figure2(model_data_patt):
 
 
 def result_figure3(model_data_patt, human_data_path):
-
     label, md_data = read_resfiles(model_data_patt)
     md_data = np.concatenate(md_data, axis=0)
 
@@ -276,7 +273,7 @@ def result_figure3(model_data_patt, human_data_path):
     rms_bd_sem = []
     for bd in bd_vals:
         idx = bd_data == bd
-        rms = np.sqrt((azim_pred[idx] - azim_act[idx])**2)
+        rms = np.sqrt((azim_pred[idx] - azim_act[idx]) ** 2)
         rms_bd.append(rms.mean())
         rms_bd_sem.append(sstats.bootstrap([rms], np.mean, n_resamples=10).standard_error)
 
@@ -315,6 +312,7 @@ def result_figure3(model_data_patt, human_data_path):
     ax[1][1].set_xlabel('Bandwidth (octaves)')
     ax[1][1].set_ylabel('r.m.s. error (degree)')
 
+
 def result_figure4(model_data_patt):
     header, data = read_resfiles(model_data_patt)  # read results file
     data = np.concatenate(data, axis=0)  # concatenate data
@@ -326,6 +324,7 @@ def result_figure4(model_data_patt):
 
 if __name__ == '__main__':
     import scipy
+
     results_root = "Result"
     model_data_patt = os.path.join(results_root, "*_azi*model_333.csv")
     header, data = read_resfiles(model_data_patt)  # read results file
@@ -355,7 +354,7 @@ if __name__ == '__main__':
 
     elevation_gain, n = scipy.stats.linregress(targets[:, 1], responses[:, 1])[:2]
     rmse = np.sqrt(np.mean(np.square(targets - responses), axis=0))
-    variability = np.mean([np.std(responses[np.where(np.all(targets == target, axis=1))], axis=0) for target in np.unique(targets, axis=0)], axis=0)
+    variability = np.mean([np.std(responses[np.where(np.all(targets == target, axis=1))], axis=0) for target in
+                           np.unique(targets, axis=0)], axis=0)
     az_rmse, ele_rmse = rmse[0], rmse[1]
     az_var, ele_var = variability[0], variability[1]
-

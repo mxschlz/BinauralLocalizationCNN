@@ -1,11 +1,12 @@
-import os
 import glob
 import json
+import os
+
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib
-import matplotlib.pyplot as plt
 
 matplotlib.use("TkAgg")
 
@@ -59,10 +60,15 @@ def get_learning_curve_json(root, type="auc"):
     return data
 
 
-fig, ax = plt.subplots(1, 2, sharex=True, sharey=True)
-data = get_learning_curve_json(root="netweights_MSL")
-sns.lineplot(x="step", y="accuracy", data=data, ax=ax[0])
-sns.lineplot(x="step", y="accuracy", data=data, hue="network", ax=ax[1])
-plt.show()
+def main() -> None:
+    fig, ax = plt.subplots(1, 2, sharex=True, sharey=True)
+    data = get_learning_curve_json(root="netweights_MSL")
+    sns.lineplot(x="step", y="accuracy", data=data, ax=ax[0])
+    sns.lineplot(x="step", y="accuracy", data=data, hue="network", ax=ax[1])
+    plt.show()
 
-# print(f"Final Accuracy: {round(data.accuracy[np.where(data.iteration==2720)[0]].mean(), ndigits=2)}")
+    # print(f"Final Accuracy: {round(data.accuracy[np.where(data.iteration==2720)[0]].mean(), ndigits=2)}")
+
+
+if __name__ == "__main__":
+    main()

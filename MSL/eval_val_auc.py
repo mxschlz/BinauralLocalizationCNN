@@ -1,14 +1,15 @@
-import numpy as np
 import glob
+
 import matplotlib
+import numpy as np
+
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import pandas as pd
-import scienceplots
+
 plt.style.use("science")
 plt.ion()
 import seaborn as sns
-
 
 # get all auc files --> 10 nets, 10 files
 files = sorted(glob.glob("val_auc/*val_auc.npy"))
@@ -25,7 +26,6 @@ for file, net in zip(files, netnames):  # iterate through files
         mean = np.mean(data.item()[mv])
         d[net].append(mean)  # put average
 df = pd.DataFrame(d)
-
 
 x = df.index
 y = df.values

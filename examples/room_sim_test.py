@@ -1,9 +1,8 @@
-import pyroomacoustics as pra
-
 import os
-from scipy.io import wavfile
-import numpy as np
 
+import numpy as np
+import pyroomacoustics as pra
+from scipy.io import wavfile
 
 data_path = os.path.join('..', 'tfrecords', 'origin')
 wav_ori = 'test.wav'
@@ -37,4 +36,3 @@ fig.set_size_inches(18.5, 10.5)
 fig, ax = room.plot()
 ax.set_xlim([-1, 6])
 ax.set_ylim([-1, 6])
-

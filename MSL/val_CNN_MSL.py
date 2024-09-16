@@ -1,6 +1,7 @@
 import os
-from run_CNN import run_CNN
+
 from MSL.config_MSL import CONFIG_TEST as cfg
+from run_CNN import run_CNN
 
 # MSL
 stim_tfrecs = os.path.join("tfrecords/numjudge_*test_azi*.tfrecords")
@@ -19,4 +20,3 @@ for net in range(5, 11):
             trainedNet_path=trainedNet,
             cfg=cfg,
             save_name=f"net_{net}")
-

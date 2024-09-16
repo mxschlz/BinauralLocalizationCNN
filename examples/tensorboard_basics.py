@@ -39,4 +39,3 @@ with sess:
     sess.run(init)
     result = sess.run(f)
     print(result)
-

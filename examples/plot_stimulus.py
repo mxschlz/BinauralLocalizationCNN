@@ -1,7 +1,9 @@
 import os
-import slab
+
 import matplotlib.pyplot as plt
 import numpy as np
+import slab
+
 from stim_gen import augment_from_wav, augment_from_array, pick_hrtf_by_loc, KEMAR_HRTF
 
 """

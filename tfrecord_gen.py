@@ -1,5 +1,6 @@
-import random
 import os
+import random
+
 import tensorflow as tf
 
 
@@ -24,9 +25,9 @@ LBS_MAPPING = {
     'azim': ['train/azim', _int64_feature],
     'elev': ['train/elev', _int64_feature],
     'dist': ['train/dist', _float_feature],
-    'hrtf_idx':  ['train/hrtf_idx', _int64_feature],
-    'ITD':  ['train/ITD', _int64_feature],
-    'ILD':  ['train/ILD', _int64_feature],
+    'hrtf_idx': ['train/hrtf_idx', _int64_feature],
+    'ITD': ['train/ITD', _int64_feature],
+    'ILD': ['train/ILD', _int64_feature],
     'smooth_factor': ['train/smooth_factor', _int64_feature],
     'sampling_rate': ['train/sampling_rate', _int64_feature],
     'cnn_idx': ['train/cnn_idx', _int64_feature],
@@ -196,6 +197,11 @@ def check_record(rec_file):
     return True, rec_idx
 
 
+def main():
+    state, rec_idx = check_record(
+        rec_file="/home/max/PycharmProjects/BinauralLocalizationCNN/numjudge_full_set_talkers_clear_train.tfrecords")
+
+
 # testing
 if __name__ == '__main__':
-    state, rec_idx = check_record(rec_file="/home/max/PycharmProjects/BinauralLocalizationCNN/numjudge_full_set_talkers_clear_train.tfrecords")
+    main()

@@ -1,6 +1,6 @@
 import os
-from run_CNN import run_CNN
 
+from run_CNN import run_CNN
 
 CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n_classes_localization": 504},
                    DEFAULT_COST_PARAM={"multi_source_localization": False},
@@ -24,5 +24,3 @@ for net in range(1, 11):
     save_name = os.path.join('Results_locaaccu', f'LocaAccu_babble_{plane}_result')
     # run the model
     run_CNN(stim_tfrec_pattern=stim_tfrecs, trainedNet_path=trainedNet, save_name=save_name, cfg=CONFIG_TEST)
-
-

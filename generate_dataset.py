@@ -223,13 +223,12 @@ def main():
     # Parallel
     training_samples = []
     with Pool() as pool:
-        for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths), desc='Raw sounds transformed', total=len(stim_paths), position=0):
-
+        for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths),
+                                           desc='Raw sounds transformed', total=len(stim_paths), position=0):
             training_samples.extend(samples_from_one_sound)
             bar.update(len(samples_from_one_sound))
 
     bar.close()
-
 
     # print_data_generation_info({t: MCDERMOTT_ROOM_CONFIGS[t]})
     # PBAR.close()

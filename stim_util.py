@@ -1,8 +1,8 @@
-from pycochleagram import utils as utl
-import slab
 import numpy as np
-import numpy.typing as npt
+import slab
 from nnresample import resample
+
+from pycochleagram import utils as utl
 
 
 def apply_hanning_window(stim, ramp_duration_ms, sample_rate=48000):
@@ -19,10 +19,10 @@ def apply_hanning_window(stim, ramp_duration_ms, sample_rate=48000):
     stim_np = np.array(stim)
     stim_dur_smp = stim_np.shape[0]
     ramp_dur_smp = int(np.floor(ramp_duration_ms * sample_rate / 1000))
-    hanning_window = np.hanning(ramp_dur_smp*2)
+    hanning_window = np.hanning(ramp_dur_smp * 2)
     onset_win = stim_np[:ramp_dur_smp] * hanning_window[:ramp_dur_smp]
-    middle = stim_np[ramp_dur_smp:stim_dur_smp-ramp_dur_smp]
-    end_win = stim_np[stim_dur_smp-ramp_dur_smp:] * hanning_window[ramp_dur_smp:]
+    middle = stim_np[ramp_dur_smp:stim_dur_smp - ramp_dur_smp]
+    end_win = stim_np[stim_dur_smp - ramp_dur_smp:] * hanning_window[ramp_dur_smp:]
     windowed_stim = np.concatenate((onset_win, middle, end_win))
     return windowed_stim
 
@@ -115,7 +115,7 @@ def zero_padding(stim, type="front", goal_duration=2.1):
         return slab.Sound.sequence(stim, padding)
 
 
-if __name__ == "__main__":
+def main() -> None:
     import matplotlib.pyplot as plt
     import matplotlib
     matplotlib.use("TkAgg")
@@ -130,3 +130,7 @@ if __name__ == "__main__":
     front_padded.waveform(axis=ax[0][1])
     back_padded.waveform(axis=ax[1][0])
     front_back_padded.waveform(axis=ax[1][1])
+
+
+if __name__ == "__main__":
+    main()

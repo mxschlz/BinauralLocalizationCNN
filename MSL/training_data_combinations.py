@@ -1,6 +1,6 @@
 import math
-import numpy as np
 
+import numpy as np
 
 # this script calculates all the possible combinations of audio samples in the MSL experiment. In total, we have
 # 8 unique talkers with 13 audio samples each == 104 total audio samples. Furthermore, we have 7 different speakers
@@ -22,7 +22,7 @@ combinations = list()  # save results
 
 def ncr(n, r):
     f = math.factorial
-    return f(n) // f(r) // f(n-r)
+    return f(n) // f(r) // f(n - r)
 
 
 for cond in conditions:

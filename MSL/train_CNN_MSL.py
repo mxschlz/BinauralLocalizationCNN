@@ -1,7 +1,7 @@
 import os
-from run_CNN import run_CNN
-import MSL.config_MSL as cfg
 
+import MSL.config_MSL as cfg
+from run_CNN import run_CNN
 
 stim_tfrecs = os.path.join("tfrecords/*train*.tfrecords")
 total_retries = (cfg.CONFIG_TRAIN["DEFAULT_RUN_PARAM"]["total_steps"] /

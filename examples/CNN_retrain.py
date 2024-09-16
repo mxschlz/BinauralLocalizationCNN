@@ -1,21 +1,21 @@
 import collections
-
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function, freeze_session
-from NetBuilder import NetBuilder
-
-import os
 import glob
-import tensorflow as tf
-import numpy as np
-import time
 import json
+import os
 import pdb
+import time
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.python.ops import gradients
 
 # custom memory saving gradient
 import memory_saving_gradients
-from tensorflow.python.ops import gradients
-from run_CNN import update_param_dict
+from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
 from MSL.config_MSL import CONFIG_TRAIN as cfg
+from NetBuilder import NetBuilder
+from run_CNN import update_param_dict
+
 # import mem_util
 
 # this controls CUDA convolution optimization
@@ -28,7 +28,6 @@ def gradients_memory(ys, xs, grad_ys=None, **kwargs):
 
 
 gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
-
 
 # data paths
 stim_tfrec_pattern = "*train*.tfrecords"
@@ -154,7 +153,6 @@ freeze_vars = unique_list(all_vars, retrain_vars)
 # get variable list for restoring in saver
 var_list = tf.contrib.framework.get_variables_to_restore(exclude=None)
 
-
 if testing:
     print("Please set testing param to False in order to retrain the CNN!")
 if not testing:
@@ -204,7 +202,7 @@ if not testing:
             if step % display_step == 0:
                 # Calculate batch loss and accuracy
                 loss, acc, bl, auc_out, update_auc_out = sess.run([cost, accuracy, data_label['train/binary_label'],
-                                                                      auc, update_op_auc])
+                                                                   auc, update_op_auc])
                 print("Batch Labels: ", bl)
                 print(f"Iter {step * batch_size}, "
                       f"Minibatch Loss = {loss}, "

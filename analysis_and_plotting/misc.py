@@ -1,6 +1,5 @@
 import numpy as np
 
-
 _p_ref = 2e-5  # 20 μPa, the standard reference pressure for sound in air
 
 

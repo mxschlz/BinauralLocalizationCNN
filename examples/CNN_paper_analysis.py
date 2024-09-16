@@ -1,9 +1,8 @@
 import matplotlib
+
 matplotlib.use("TkAgg")
 from CNN_result_analysis import result_figure1, result_figure2, result_figure3
 import os
-import matplotlib.pyplot as plt
-
 
 res_path = 'Result'
 # figure 1

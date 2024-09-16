@@ -1,15 +1,15 @@
-from stim_gen import render_stims
-import random
-import numpy as np
+import itertools
 import pickle
+import random
+
+import numpy as np
+import slab
+
 from CNN_preproc import process_stims
+from CNN_util import get_dataset_partitions
+from stim_gen import render_stims
 from stim_util import zero_padding
 from tfrecord_gen import create_tfrecord, check_record
-from CNN_util import get_dataset_partitions
-import slab
-import itertools
-from show_subbands import show_subbands
-
 
 # PIPELINE FOR NUMJUDGE TFRECORD GENERATION
 # Render each talker for a given spatial position (azi, ele) in a trial separately.
@@ -106,9 +106,8 @@ for i, _ in enumerate(sequence):
             print(f"Elevation sample computed. Adding to final list ...")
             # show_subbands(sound)
             # sound.play()
-    print(f"Trial number {i+1}/{sequence.n_trials} finished. Continuing ...")
+    print(f"Trial number {i + 1}/{sequence.n_trials} finished. Continuing ...")
 print("Data generation done!")
-
 
 # divide into train and test set
 for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
@@ -116,7 +115,6 @@ for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
     coords = pos_azim if plane == "azi" else pos_elev
     train, test = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
     for name, ds in zip(["train", "test"], [train, test]):
-
         # preprocessing
         ds_final = process_stims(ds, coch_param=cochleagram_params)
 

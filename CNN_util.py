@@ -1,12 +1,13 @@
 """
 utilities to run the CNN model from Francl 2022 paper
 """
-import tensorflow as tf
 import collections
-from google.protobuf.json_format import MessageToJson
-import json
 import glob
+import json
+
 import numpy as np
+import tensorflow as tf
+from google.protobuf.json_format import MessageToJson
 
 # TODO: remapping of azim/elev data; keep original, but seems azim in [0, 360] and elev in [0, 60]
 
@@ -16,10 +17,10 @@ DATA_MAPPING = {
     'elev': ['train/elev', tf.int64],
     'dist': ['train/dist', tf.float32],
     "n_sounds": ["train/n_sounds", tf.int64],
-    'hrtf_idx':  ['train/hrtf_idx', tf.int64],
-    'sampling_rate':  ['train/sampling_rate', tf.int64],
-    'ITD':  ['train/ITD', tf.int64],
-    'ILD':  ['train/ILD', tf.int64],
+    'hrtf_idx': ['train/hrtf_idx', tf.int64],
+    'sampling_rate': ['train/sampling_rate', tf.int64],
+    'ITD': ['train/ITD', tf.int64],
+    'ILD': ['train/ILD', tf.int64],
     'smooth_factor': ['train/smooth_factor', tf.int64],
     'center_freq': ['train/center_freq', tf.int64],
     'bandwidth': ['train/bandwidth', tf.float32],
@@ -82,9 +83,9 @@ def build_tfrecords_iterator(train_path_pattern, feature_parsing_dict,
     :return: tf.data.Dataset iterator
     """
     if stacked_channel:
-        STIM_SIZE = [39, int(48000/ds_ratio), 2]
+        STIM_SIZE = [39, int(48000 / ds_ratio), 2]
     else:
-        STIM_SIZE = [78, int(48000/ds_ratio)]
+        STIM_SIZE = [78, int(48000 / ds_ratio)]
 
     # get all the tfrecords files to be used
     training_paths = glob.glob(train_path_pattern)
@@ -162,7 +163,7 @@ def build_tfrecords_iterator(train_path_pattern, feature_parsing_dict,
     cl = min(len(training_paths), 10)
     dataset = dataset.apply(tf.contrib.data.parallel_interleave(
         lambda x: tf.data.TFRecordDataset(x, compression_type="GZIP").
-            map(parse_single_tfrecord, num_parallel_calls=1),
+        map(parse_single_tfrecord, num_parallel_calls=1),
         cycle_length=cl, block_length=16)
     )
     # TODO: check buffer_size, currently seems 200 is too large for my computer
@@ -257,7 +258,8 @@ def cost_function(data_sample, net_out, sam_tones=False, transposed_tones=False,
             labels_batch_sphere = data_sample['train/azim']
         labels_batch_cost_sphere = tf.squeeze(labels_batch_sphere)
     if multi_source_localization:
-        cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=net_out, labels=multihot_labels))  # check here. Logits is model estimate, labels are true labels. Think i got the right labels
+        cost = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=net_out,
+                                                                      labels=multihot_labels))  # check here. Logits is model estimate, labels are true labels. Think i got the right labels
         return cost, multihot_labels
     else:
         cost = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits
@@ -294,7 +296,7 @@ def get_dataset_partitions(ds, train_split=0.8, test_split=0.2, shuffle=True):
 
     # Partition the dataset
     train_ds = ds[:train_size]
-    test_ds = ds[train_size:train_size+test_size]
+    test_ds = ds[train_size:train_size + test_size]
 
     return train_ds, test_ds
 
@@ -344,13 +346,13 @@ def filter_sparse_to_dense(var_list):
     '''
     ret_list = []
     for var in var_list:
-        if isinstance(var,tf.SparseTensor):
-            var = tf.sparse.to_dense(var,default_value=-1)
+        if isinstance(var, tf.SparseTensor):
+            var = tf.sparse.to_dense(var, default_value=-1)
         ret_list.append(var)
     return ret_list
 
 
-if __name__ == "__main__":
+def main() -> None:
     import os
     import NetBuilder
 
@@ -386,3 +388,5 @@ if __name__ == "__main__":
     cost, labels = cost_function(data_sample, net_out, multi_source_localization=True)
 
 
+if __name__ == "__main__":
+    main()

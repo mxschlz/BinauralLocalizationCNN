@@ -1,15 +1,17 @@
-from analysis_and_plotting.misc import spectemp_coverage
-import slab
 import pickle
-import numpy as np
+
 import matplotlib.pyplot as plt
-import scienceplots
+import numpy as np
+import slab
+
+from analysis_and_plotting.misc import spectemp_coverage
+
 plt.style.use("science")
 import seaborn as sns
 import matplotlib.pyplot as plt
+
 plt.ion()
 import string
-
 
 talkers_clear = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_clear.pkl", "rb"))
 talkers_reversed = pickle.load(open("/home/max/labplatform/sound_files/numjudge_talker_files_reversed.pkl", "rb"))
@@ -22,10 +24,9 @@ resize = 0.6  # resize duration
 signals_sample = slab.ResultsFile.read_file(filename="logfiles/log_train_test/log_train_test_2023-12-07-16-50-58.txt",
                                             tag="signals_sample_azi")
 speakers_sample = slab.ResultsFile.read_file(filename="logfiles/log_train_test/log_train_test_2023-12-07-16-50-58.txt",
-                                            tag="speakers_sample_azi")
+                                             tag="speakers_sample_azi")
 country_idxs = slab.ResultsFile.read_file(filename="logfiles/log_train_test/log_train_test_2023-12-07-16-50-58.txt",
-                                            tag="country_idxs_azi")
-
+                                          tag="country_idxs_azi")
 
 # gather all available stimuli
 stimlist_clear = dict()
@@ -36,7 +37,6 @@ for talker in list(talkers_clear.keys()):
         # stim = stim.resample(samplerate)
         stimlist_clear[talker].append(stim)
 
-
 stimlist_reversed = dict()
 for talker in list(talkers_reversed.keys()):
     stimlist_reversed[talker] = list()
@@ -44,7 +44,6 @@ for talker in list(talkers_reversed.keys()):
     for stim in talkers_reversed[talker]:
         # stim = stim.resample(samplerate)
         stimlist_reversed[talker].append(stim)
-
 
 data_clear = dict(n_sounds=[], coverage=[])
 data_reversed = dict(n_sounds=[], coverage=[])
@@ -81,14 +80,12 @@ for x, y in zip(data_reversed["n_sounds"], data_reversed["coverage"]):
     else:
         continue
 
-
 signals_sample = slab.ResultsFile.read_file(filename="logfiles/log_train_test/log_train_test_2023-12-07-16-50-58.txt",
                                             tag="signals_sample_ele")
 speakers_sample = slab.ResultsFile.read_file(filename="logfiles/log_train_test/log_train_test_2023-12-07-16-50-58.txt",
-                                            tag="speakers_sample_ele")
+                                             tag="speakers_sample_ele")
 country_idxs = slab.ResultsFile.read_file(filename="logfiles/log_train_test/log_train_test_2023-12-07-16-50-58.txt",
-                                            tag="country_idxs_ele")
-
+                                          tag="country_idxs_ele")
 
 # gather all available stimuli
 stimlist_clear = dict()
@@ -99,7 +96,6 @@ for talker in list(talkers_clear.keys()):
         # stim = stim.resample(samplerate)
         stimlist_clear[talker].append(stim)
 
-
 stimlist_reversed = dict()
 for talker in list(talkers_reversed.keys()):
     stimlist_reversed[talker] = list()
@@ -107,7 +103,6 @@ for talker in list(talkers_reversed.keys()):
     for stim in talkers_reversed[talker]:
         # stim = stim.resample(samplerate)
         stimlist_reversed[talker].append(stim)
-
 
 data_clear = dict(n_sounds=[], coverage=[])
 data_reversed = dict(n_sounds=[], coverage=[])
@@ -144,7 +139,6 @@ for x, y in zip(data_reversed["n_sounds"], data_reversed["coverage"]):
     else:
         continue
 
-
 layout = """
 ab
 """
@@ -162,16 +156,16 @@ ax["a"].plot(plt.xlim(), plt.ylim(), ls="--", c=".3")
 sns.lineplot(x=new_x_clear_ele, y=new_y_clear_ele, err_style="bars", ax=ax["b"])
 sns.lineplot(x=new_x_rev_ele, y=new_y_rev_ele, err_style="bars", ax=ax["b"])
 ax["b"].set_xlabel("Actual Number Of Sounds")
-#ax["a"].set_ylabel("Spectro-Temporal Coverage")
+# ax["a"].set_ylabel("Spectro-Temporal Coverage")
 ax["b"].legend(["Forward Speech", "Reversed Speech"])
 ax["b"].set_ylim([0.5, 1])
 ax["b"].set_xlim([1.5, 6.5])
 ax["b"].plot(plt.xlim(), plt.ylim(), ls="--", c=".3")
 
 ax["a"].text(-0.15, 1.05, string.ascii_uppercase[0], transform=ax["a"].transAxes,
-               size=20, weight='bold')
+             size=20, weight='bold')
 ax["b"].text(-0.15, 1.05, string.ascii_uppercase[1], transform=ax["b"].transAxes,
-               size=20, weight='bold')
+             size=20, weight='bold')
 
 plt.savefig("/home/max/PycharmProjects/BinauralLocalizationCNN/plots/final_spectemp.png",
             dpi=400, bbox_inches="tight")

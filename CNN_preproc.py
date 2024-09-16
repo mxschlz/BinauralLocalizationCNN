@@ -8,15 +8,13 @@ things to do:
 
 currently down sampling uses tensorflow conv2d
 """
-import matplotlib.pyplot as plt
 
-from stim_util import apply_hanning_window, normalize_binaural_stim
-
-import tensorflow as tf
 import numpy as np
-from pycochleagram import cochleagram as cgm
 import scipy.signal as signallib
+import tensorflow as tf
 
+from pycochleagram import cochleagram as cgm
+from stim_util import apply_hanning_window, normalize_binaural_stim
 
 # default settings
 NORM_SETTING = {'target_sr': 48000,

@@ -1,23 +1,23 @@
 import collections
 import csv
-
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function, filter_sparse_to_dense
-from NetBuilder import NetBuilder
-
-import os
 import glob
-import tensorflow as tf
-import numpy as np
-import time
 import json
+import os
 import pdb
-from analysis_and_plotting.decision_rule import decide_sound_presence
+import time
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.python.ops import gradients
 
 # custom memory saving gradient
 import memory_saving_gradients
-from tensorflow.python.ops import gradients
-from run_CNN import update_param_dict
+from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
 from MSL import config_MSL as cfg
+from NetBuilder import NetBuilder
+from analysis_and_plotting.decision_rule import decide_sound_presence
+from run_CNN import update_param_dict
+
 # import mem_util
 
 # this controls CUDA convolution optimization
@@ -30,7 +30,6 @@ def gradients_memory(ys, xs, grad_ys=None, **kwargs):
 
 
 gradients.__dict__["gradients"] = memory_saving_gradients.gradients_speed
-
 
 # data paths
 stim_tfrec_pattern = "*test_azi*"
@@ -132,7 +131,6 @@ with tf.control_dependencies(update_ops):
     else:
         update_grads = tf.train.AdamOptimizer(learning_rate=run_params['learning_rate'],
                                               epsilon=1e-4).minimize(cost)
-
 
 init_op = tf.group(tf.global_variables_initializer(),
                    tf.local_variables_initializer())

@@ -23,6 +23,7 @@ Layer definitions:
 
 """
 
+
 class NetBuilder:
 
     def __init__(self, cpu_only=False):

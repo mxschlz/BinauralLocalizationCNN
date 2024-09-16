@@ -99,6 +99,3 @@ def conv2d(a, b):
     a = as_strided(a, (a.shape[0], Hout, Wout, b.shape[0], b.shape[1], a.shape[3]), a.strides[:3] + a.strides[1:])
 
     return np.tensordot(a, b, axes=3)
-
-
-
