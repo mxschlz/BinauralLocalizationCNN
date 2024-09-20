@@ -1,4 +1,6 @@
 import logging
+import multiprocessing
+import os
 import pickle
 import random
 import sys
@@ -7,13 +9,16 @@ from pathlib import Path
 from typing import List, Dict, Generator, Tuple
 
 import numpy as np
+import scipy as sp
 import slab
 from slab import Filter
 from tqdm import tqdm
+from nnresample import resample
 
+from CNN_preproc import cochleagram_wrapper, make_downsample_filter
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     MCDERMOTT_SOURCE_POSITIONS, CartesianCoordinates, MCDERMOTT_ROOM_CONFIGS
-from stim_util import zero_padding
+from stim_util import zero_padding, normalize_binaural_stim
 
 
 def augment_raw_sound(sound: slab.Sound, lowest_center_freq=100, nr_octaves=8) -> List[slab.Sound]:
@@ -187,12 +192,92 @@ def generate_training_samples_from_stim_path(stim_path: Path,
         snr_factor = (10 ** (-random.uniform(5, 30) / 20))  # TODO: No idea if this is right...
         combined_sound = normalized_sound + background * 0.1
         # yield combined_sound, training_coordinates
-        training_samples.append((combined_sound, training_coordinates))
+        training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
     return training_samples
+
+
+# DOWNSAMPLE_FILTER = make_downsample_filter()
+
+
+def transform_stim_to_cochleagram(stim: slab.Binaural):
+    """
+
+    Args:
+        stim:
+
+    Returns:
+
+    """
+    normalized_stim, sr = normalize_binaural_stim(stim.data, stim.samplerate)
+    cochleagram = cochleagram_wrapper(normalized_stim)
+    # -> low subband index is low frequency band; plot cochleagrams them upside down
+
+    # print(cochleagram.shape, type(cochleagram))
+    # downsampled = slab.Signal(cochleagram.T).resample(8000)
+    # -> Doesn't work bc Signal() automatically transposes the cochleagram, assuming it's a <=2D signal
+    # print(sp.signal.resample(cochleagram, 8000, axis=1).shape, type(sp.signal.resample(cochleagram, 8000, axis=1)))
+    downsampled = sp.signal.resample(cochleagram, 8000, axis=1)
+    # -> 0.031 per call, 12.315 tottime for 100 calls
+    # downsampled = resample(cochleagram, 8000, 48000, axis=1, fc='nn')
+    # -> hangs up when calling upfirdn
+
+    return downsampled
+    # Shape: (39, 48000, 2)
+    # Downsample to: (39, 8000, 2)
+    # TODO: Figure out dimension stuff; why is filter (1, filt_len, 2, 2)? What does stride=[1, 1, ds_ratio, 1] mean (the ones)?
+"""
+- Probably using TF because 2d conv is faster than filtering all cochleagram channels separately
+-> Ideally profile TF 2d conv vs. nnresample vs. scipy.signal.resample vs. scipy.signal.fftconvolve
+-> Also look at slab.Signal.resample(), could use it on cochleagram w/ many channels
+-> Should this speed comparison be in the thesis? Probably not, right?
+
+- Only decimating to 8kHz introduces aliasing, so we apply a filter before
+
+"""
+
+def profile_transform_stim_to_cochleagram():
+    stim = slab.Binaural(slab.Sound.pinknoise(duration=3.0, samplerate=48000))
+    import cProfile, pstats
+    with cProfile.Profile() as pr:
+        for _ in range(100):
+            print(_)
+            transform_stim_to_cochleagram(stim)
+
+    stats = pstats.Stats(pr)
+    stats.sort_stats(pstats.SortKey.TIME)
+    stats.print_stats()
+    stats.dump_stats(filename='profile_stats_cochleagram.prof')
+
+
+def plot_cochleagram(cochleagram):
+    import matplotlib.pyplot as plt
+    # Shape of cochleagram: (39, 48000, 2)
+
+    # left = cochleagram[:, 2200:2400, 0]  # Plot shorter interval so smoothing doesn't cancel out the high and low points in signal
+    # right = cochleagram[:, 2200:2400, 1]
+    left = cochleagram[:, :, 0]
+    right = cochleagram[:, :, 1]
+    fig, axs = plt.subplots(2, 1, figsize=(20, 10))
+    axs[0].imshow(left, aspect='auto', cmap='PuOr', origin='lower')
+    axs[1].imshow(right, aspect='auto', cmap='PuOr', origin='lower')
+    plt.show()
+
+
+def plot_slab_cochleagram(cochleagram):
+    import matplotlib.pyplot as plt
+    # Shape of cochleagram: (120000, 39)
+    plt.imshow(cochleagram.T, aspect='auto', cmap='PuOr', origin='lower')
+    plt.show()
+
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
+    training_samples = pickle.load(open('training_samples.pkl', 'rb'))
+
+
+
+    sys.exit(0)
     # Resample background sounds to 48kHz
     # for file in Path('resources', 'McDermott_Simoncelli_2011_168_Sound_Textures').glob('*.wav'):
     #     slab.Sound(file).resample(48000).write(file)
@@ -212,23 +297,50 @@ def main():
     #         sample.play(blocking=True)
     #     i += 1
 
-    # NEXT STEPS
-    # TODO: apply cochleagram
+    # TODO TODAY
+    # TODO: apply cochleagram -> Go through reproduce_mcdermott_data.py, then CNN_preproc.py/process_stims() which is where cochleagram is created (needs tensorflow. Why? pycochleagram doesn't. port this part to TF2?)
     # TODO: save to tfrecord
+    # TODO: Make 2 datasets out of the USOs with different HRTFs
+
+    # TODO TOMORROW
+    # TODO: Get CNN running on lab machine
     # TODO: Run CNN evaluation on multiple datasets with different HRTFs, and see if elevation collapses
+
 
     # TODO: compare with McDermott's data generation pipeline
 
-    bar = tqdm(desc='Generated training samples', position=1, unit='samples')
-    # Parallel
-    training_samples = []
-    with Pool() as pool:
-        for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths),
-                                           desc='Raw sounds transformed', total=len(stim_paths), position=0):
-            training_samples.extend(samples_from_one_sound)
-            bar.update(len(samples_from_one_sound))
+    import cProfile, pstats
+    with cProfile.Profile() as pr:
+        bar = tqdm(desc='Generated training samples', position=1, unit='samples')
+        # Parallel
+        # nr_workers = multiprocessing.cpu_count()
+        # div, mod = divmod(len(stim_paths), nr_workers)
+        # chunksize = div + 1 if mod else div
+        #
+        # logging.info(f'Using {nr_workers} workers')
+        # logging.info(f'Chunksizes: {chunksize}')
+        #
+        # training_samples = []
+        # with Pool(nr_workers) as pool:
+        #     for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths, chunksize=chunksize),
+        #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
+        #         training_samples.extend(samples_from_one_sound)
+        #         bar.update(len(samples_from_one_sound))
 
-    bar.close()
+        # Sequential
+        training_samples = []
+        for stim_path in stim_paths[:1]:
+            training_samples.extend(generate_training_samples_from_stim_path(stim_path, path_to_brirs=path_to_brirs))
+            bar.update(len(training_samples))
+
+        bar.close()
+
+    stats = pstats.Stats(pr)
+    stats.sort_stats(pstats.SortKey.TIME)
+    stats.print_stats()
+    stats.dump_stats(filename='profile_stats.prof')
+
+    pickle.dump(training_samples, open('training_samples.pkl', 'wb'))
 
     # print_data_generation_info({t: MCDERMOTT_ROOM_CONFIGS[t]})
     # PBAR.close()
@@ -243,39 +355,56 @@ def main():
 
     # Assuming that for each augmented sound the positions and background noises are chosen independently
 
-    """
-    GOAL: A generator that spits out one labeled training sample at a time in the form of a tfrecord Example (I think)
-    First: Not a generator, but a small dataset that can be saved to a tfrecord; take care of continuous data generation later.
-
-    TODO:
-    - function to generate background noise samples -> See if easier to run entirely in Matlab
-        - Calls Matlab code to generate textures
-        - Params for one sample -> texture transformation: samplerate, nr_textures (1000), duration (5s) 
-        - Input: List of sound samples (what format?)
-        - Cut down to 2s
-        - Note: Picked 50 sound samples that made textures that were good (see paper)
-        - Save them (ca. 8GB)
-    -> Later, for now just use textures from files
-    
-    - BRIR on bandpassed stimuli sounds weird (big blob in bass), figure out what's going on
 
 
 
-    - function that transforms sample into cochleagram
-    - cut cochleagrams, more info in paper, maybe already implemented
-    - note info and format of labels: image, image_width, image_height, elev, azim
-    - First: save to tfrecord and see how much space it takes (later: maybe use online augmentation)
-    - Test if data can be used to train the CNN
+"""
+GOAL: A generator that spits out one labeled training sample at a time in the form of a tfrecord Example (I think)
+First: Not a generator, but a small dataset that can be saved to a tfrecord; take care of continuous data generation later.
 
-    McDermott's website:
-    - Datasets for stimuli and textures
-    - Matlab Code for texture generation!
-    - pychochleagram code for vanilla python, tensorflow, and pytorch
+TODO:
+- function to generate background noise samples -> See if easier to run entirely in Matlab
+    - Calls Matlab code to generate textures
+    - Params for one sample -> texture transformation: samplerate, nr_textures (1000), duration (5s) 
+    - Input: List of sound samples (what format?)
+    - Cut down to 2s
+    - Note: Picked 50 sound samples that made textures that were good (see paper)
+    - Save them (ca. 8GB)
+-> Later, for now just use textures from files
 
-    Notes:
-    - My BRIR gen is much faster than in the paper. Unsure why.
-    """
+- BRIR on bandpassed stimuli sounds weird (big blob in bass), figure out what's going on
 
 
-if __name__ == "__main__":
-    main()
+
+- function that transforms sample into cochleagram
+- cut cochleagrams, more info in paper, maybe already implemented
+- note info and format of labels: image, image_width, image_height, elev, azim
+- First: save to tfrecord and see how much space it takes (later: maybe use online augmentation)
+- Test if data can be used to train the CNN
+
+McDermott's website:
+- Datasets for stimuli and textures
+- Matlab Code for texture generation!
+- pychochleagram code for vanilla python, tensorflow, and pytorch
+
+Notes:
+- My BRIR gen is much faster than in the paper. Unsure why.
+
+
+##### PROFILING #####
+-> sequential: total time 30 source files: 4:27 min
+ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+198656  100.560    0.001  100.560    0.001 {built-in method scipy.fft._pocketfft.pypocketfft.r2c}
+ 99328   52.136    0.001   52.136    0.001 {built-in method scipy.fft._pocketfft.pypocketfft.c2r}
+ 42075   29.815    0.001   30.042    0.001 /Users/david/Repositories/ma/BinauralLocalizationCNN/venv_stim_gen/lib/python3.11/site-packages/soundfile.py:1346(_cdata_io)
+ 49664   12.149    0.000   12.190    0.000 {built-in method numpy.fromfile}
+198660   10.144    0.000   10.144    0.000 {method 'read' of '_io.BufferedReader' objects}
+213894    7.673    0.000    7.673    0.000 {method '__deepcopy__' of 'numpy.ndarray' objects}
+ 49664    5.458    0.000  177.352    0.004 /Users/david/Repositories/ma/BinauralLocalizationCNN/venv_stim_gen/lib/python3.11/site-packages/slab/filter.py:138(apply)
+397402    4.342    0.000    4.342    0.000 {built-in method numpy.array}
+
+"""
+
+
+# if __name__ == "__main__":
+#     main()
