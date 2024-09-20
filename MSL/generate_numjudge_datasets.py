@@ -5,7 +5,7 @@ import random
 import numpy as np
 import slab
 
-from CNN_preproc import process_stims
+from CNN_preproc import transform_stims_to_cochleagrams
 from CNN_util import get_dataset_partitions
 from stim_gen import render_stims
 from stim_util import zero_padding
@@ -116,7 +116,7 @@ for i, stim_dset in enumerate([final_stims_azi, final_stims_ele]):
     train, test = get_dataset_partitions(stim_dset, train_split=0.8, test_split=0.2, shuffle=True)
     for name, ds in zip(["train", "test"], [train, test]):
         # preprocessing
-        ds_final = process_stims(ds, coch_param=cochleagram_params)
+        ds_final = transform_stims_to_cochleagrams(ds, coch_param=cochleagram_params)
 
         # write tfrecord
         rec_file_ds = f'numjudge_talkers_clear_{name}_{plane}_{coords}.tfrecords'

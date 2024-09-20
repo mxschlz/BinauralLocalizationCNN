@@ -2,7 +2,7 @@ import matplotlib
 
 matplotlib.use("TkAgg")
 from stim_gen import augment_from_array, pick_hrtf_by_loc
-from CNN_preproc import process_stims
+from CNN_preproc import transform_stims_to_cochleagrams
 from tfrecord_gen import create_tfrecord, check_record
 import pickle
 from stim_util import zero_padding
@@ -47,7 +47,7 @@ for i, stm in enumerate(stims_final):
 """
 
 # preprocessing
-stims_final = process_stims(stims_final, coch_param=cochleagram_params)
+stims_final = transform_stims_to_cochleagrams(stims_final, coch_param=cochleagram_params)
 # write tfrecord
 rec_file = f'tfrecords/locaaccu_noise_azi_{pos_azim}.tfrecords'
 create_tfrecord(stims_final, rec_file)
@@ -68,7 +68,7 @@ for _ in range(16):
     stims_final.extend(augment_from_array(babble.data, babble.samplerate, hrtfs=hrtfs))
 
 # preprocessing
-stims_final = process_stims(stims_final, coch_param=cochleagram_params)
+stims_final = transform_stims_to_cochleagrams(stims_final, coch_param=cochleagram_params)
 # write tfrecord
 rec_file = f'tfrecords/locaaccu_babble_azi_{pos_azim}.tfrecords'
 create_tfrecord(stims_final, rec_file)
