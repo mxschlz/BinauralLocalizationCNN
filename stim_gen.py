@@ -4,7 +4,7 @@ import random
 import warnings
 # import pyroomacoustics as pra
 from copy import deepcopy
-from typing import Iterable
+from typing import Iterable, List, Dict, Union
 
 import numpy as np
 import slab
@@ -147,7 +147,7 @@ def augment_from_array(signal, sample_rate, method='hrtf', max_scaling=0.1, hrtf
         raise ValueError(f'method: {method} not known')
 
 
-def simulate_from_hrtf(sig, sig_sample_rate, hrtf_tuple, target_sample_rate=48000, **kwargs):
+def simulate_from_hrtf(sig, sig_sample_rate, hrtf_tuple, target_sample_rate=48000, **kwargs) -> List[Dict[str, Union[np.ndarray, Dict[str, Union[int, float]]]]]:
     """
     - Checks and adjusts sample rate of signal and HRTFs
     - For each position in hrtf_tuple, applies the corresponding HRTF to the signal

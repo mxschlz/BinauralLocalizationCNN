@@ -8,9 +8,10 @@ things to do:
 
 currently down sampling uses tensorflow conv2d
 """
+from typing import List, Dict, Union
 
 import numpy as np
-import scipy.signal as signallib
+import scipy as sp
 import tensorflow as tf
 
 from pycochleagram import cochleagram as cgm
@@ -35,55 +36,56 @@ COCH_SETTING = {'coch_gen_sig_cutoff': 2,
 # NOTE: parameters signal_rate, coch_freq_lims, final_stim_length should NOT be changed to match the required model
 #  inputs
 # TODO: removing ILD/ITD should be before the cochleagram
-def cochleagram_wrapper(stim, signal_rate=48000,
+def cochleagram_wrapper(stim: np.ndarray, sig_samplerate=48000,
                         coch_gen_sig_cutoff=2, coch_freq_lims=(30, 20000),
                         minimum_padding=0.35, final_stim_length=1,
-                        hanning_windowed=True, sliced=True, channel_stack=True):
+                        hanning_windowed=True, sliced=True, dual_channel=True):
     """
     pass the stimulus, stim through the cochleagram
     Args:
         stim: N-by-2 np array
-        signal_rate: stimulus sampling rate
+        sig_samplerate: stimulus sampling rate
         coch_gen_sig_cutoff: maximum length of the stimulus to be used, second
         coch_freq_lims: 2 elements tuple/list/array, low and high limits of cochlea frequency
         minimum_padding: starting parts of the stimulus to be ignored, second
         final_stim_length: duration of the result, second
         hanning_windowed: if a hanning window is to be used to window the stimulus
         sliced: if pick a random `final_stim_length` duration portion of the stimulus
-        channel_stack: if the resulting cochleagram should be stacked.
+        dual_channel: if the L/R channels in the resulting cochleagram should be stacked.
             if stacked, the result will be 36-N-2, otherwise 72-N
 
     Returns:
         resulting cochleagram, np array
     """
     # time to n samples conversion
-    final_stim_length_n = round(final_stim_length * signal_rate)
-    minimum_padding_n = round(minimum_padding * signal_rate)
-    coch_gen_sig_cutoff_n = round(coch_gen_sig_cutoff * signal_rate)
+    final_stim_length_n = round(final_stim_length * sig_samplerate)
+    minimum_padding_n = round(minimum_padding * sig_samplerate)
+    coch_gen_sig_cutoff_n = round(coch_gen_sig_cutoff * sig_samplerate)
 
-    stim_wav = stim
-    stim_freq = signal_rate
+    stim_freq = sig_samplerate
 
-    # transpose to split channels to speed up calculating subbands
-    stim_wav = stim_wav[:, :coch_gen_sig_cutoff_n]
+    # Trim signal
+    stim = stim[:, :coch_gen_sig_cutoff_n]
     # delay = 15000
-    # first dimesnion due to transpose
-    total_singal = stim_wav.shape[1]
+    # first dimension due to transpose
+    sig_length_in_samples = stim.shape[1]
     # sample_factor is a Positive integer that determines how densely ERB function will be sampled to
     # create bandpass filters. see pycochleagram for more details
     sample_factor = 1
 
     # Apply a hanning window to the stimulus
     if hanning_windowed:
-        hann_r = apply_hanning_window(stim_wav[1], 20, sample_rate=44100)
-        hann_l = apply_hanning_window(stim_wav[0], 20, sample_rate=44100)
-        r_channel = hann_r
-        l_channel = hann_l
+        r_channel = apply_hanning_window(stim[1], 20, sample_rate=44100)
+        l_channel = apply_hanning_window(stim[0], 20, sample_rate=44100)
     else:
-        r_channel = stim_wav[1]
-        l_channel = stim_wav[0]
+        r_channel = stim[1]
+        l_channel = stim[0]
 
     # calculate subbands
+    # -> Calls the cochleagram function from pycochleagram, don't inspect for now, but profile
+    # Apparently can be run in batched mode, batch dimension is the first dimension -> Otherwise creates redundant filters
+    # Maybe a @lru_cache decorator can be used to cache the filters?
+    # -> Returns np.array of shape (num_channels, num_samples)
     subbands_r = cgm.human_cochleagram(r_channel, stim_freq, low_lim=coch_freq_lims[0], hi_lim=coch_freq_lims[1],
                                        sample_factor=sample_factor, padding_size=10000,
                                        ret_mode='subband').astype(np.float32)
@@ -93,7 +95,7 @@ def cochleagram_wrapper(stim, signal_rate=48000,
 
     if sliced:
         front_limit = minimum_padding_n
-        back_limit = total_singal - minimum_padding_n - final_stim_length_n
+        back_limit = sig_length_in_samples - minimum_padding_n - final_stim_length_n
         jitter = np.random.randint(round(front_limit), round(back_limit))
         front_slice = jitter
         back_slice = jitter + final_stim_length_n
@@ -101,7 +103,7 @@ def cochleagram_wrapper(stim, signal_rate=48000,
         subbands_l = subbands_l[:, front_slice:back_slice]
         subbands_r = subbands_r[:, front_slice:back_slice]
 
-    if channel_stack:
+    if dual_channel:
         num_channels = subbands_l.shape[0] - 2 * sample_factor
         subbands = np.empty([num_channels, final_stim_length_n, 2], dtype=subbands_l.dtype)
         # not taking first and last filters because we don't want the low and
@@ -123,10 +125,10 @@ def cochleagram_wrapper(stim, signal_rate=48000,
     return subbands
 
 
-def make_downsample_filt(old_sr=48000, new_sr=8000, wd_size=4097, beta=5.0,
-                         pycoch_downsamp=False, tensor=False, double_channel=True):
+def make_downsample_filter(old_sr=48000, new_sr=8000, wd_size=4097, beta=5.0,
+                           pycoch_downsamp=False, tensor=False, double_channel=True):
     """
-    Make the sinc filter that will be used to downsample the cochleagram
+    Make the sinc filter that will be used to downsample the cochleagram in the Fourier domain
     :param old_sr: int, raw sampling rate of the audio signal
     :param new_sr: int, end sampling rate of the envelopes
     :param wd_size: int, the size of the downsampling window (should be large enough to go to zero on the edges)
@@ -136,18 +138,24 @@ def make_downsample_filt(old_sr=48000, new_sr=8000, wd_size=4097, beta=5.0,
     :param double_channel: Boolean, if return a filter to filter 2 channels together. only works for tensor
     :return:
     """
+
+    # Get a downsample_filter_response
     ds_factor = old_sr / new_sr
     if not pycoch_downsamp:
         downsample_filter_times = np.arange(-wd_size / 2, int(wd_size / 2))
+        # -> [-2048, -2047, ..., 2047]
         downsample_filter_response_orig = np.sinc(downsample_filter_times / ds_factor) / ds_factor
-        downsample_filter_window = signallib.kaiser(wd_size, beta)
+        # -> sinc function for those values; ds_facter "squeezes" the sinc function on the x-axis the higher it goes
+        downsample_filter_window = sp.signal.windows.kaiser(wd_size, beta)
+        # -> Kaiser window
         downsample_filter_response = downsample_filter_window * downsample_filter_response_orig
+        # -> Windowed sinc function
     else:
         max_rate = ds_factor
         f_c = 1. / max_rate  # cutoff of FIR filter (rel. to Nyquist)
         half_len = 10 * max_rate  # reasonable cutoff for our sinc-like function
         if max_rate != 1:
-            downsample_filter_response = signallib.firwin(2 * half_len + 1, f_c, window=('kaiser', beta))
+            downsample_filter_response = sp.signal.firwin(2 * half_len + 1, f_c, window=('kaiser', beta))
         else:  # just in case we aren't downsampling -- I think this should work?
             downsample_filter_response = np.zeros(2 * half_len + 1)
             downsample_filter_response[half_len + 1] = 1
@@ -159,17 +167,36 @@ def make_downsample_filt(old_sr=48000, new_sr=8000, wd_size=4097, beta=5.0,
         downsample_filter_response = downsample_filter_response.reshape(1, filt_len, 1, 1)
     else:
         x0 = np.zeros((1, filt_len, 1), dtype=np.float32)
+        # Shape x0: (1, filt_len, 1)
         filt = downsample_filter_response.reshape(1, filt_len, 1)
+        # Shape filt: (1, filt_len, 1)
         xl = np.concatenate([filt, x0], axis=2)
+        # Shape xl: (1, filt_len, 2)
         xl = xl.reshape(1, filt_len, 2, 1)
+        # Shape xl: (1, filt_len, 2, 1)
         xr = np.concatenate([x0, filt], axis=2)
         xr = xr.reshape(1, filt_len, 2, 1)
         downsample_filter_response = np.concatenate([xl, xr], axis=3)
-
+        # Shape downsample_filter_response: (1, filt_len, 2, 2)
     if tensor:
         downsample_filter_response = tf.constant(downsample_filter_response, tf.float32)
 
+    # Shape of filter: (1, 4097, 2, 2)
+    # Stride to use filter comes from the downsample ratio
     return downsample_filter_response
+
+
+def plot_downsample_filter(filter):
+    """
+    plot the downsample filter
+    :param filter: np array, the filter
+    :return:
+    """
+    import matplotlib.pyplot as plt
+    # Reduce dimensions and take section
+    filter = filter[0, 1792:2304, 0, 0]
+    plt.plot(filter)
+    plt.show()
 
 
 def downsample_tensor(signal, filter, ds_ratio, post_rectify=True):
@@ -225,8 +252,16 @@ class data_generator():
             yield d['subbands'], d['label']['hrtf_idx']
 
 
-def process_stims(stim_dicts, norm_param={}, coch_param={}, filt_param={}, keep_ori=False):
+def transform_stims_to_cochleagrams(stim_dicts: List[Dict[str, Union[np.ndarray, Dict[str, Union[int, float]]]]],
+                                    norm_param={}, coch_param={}, filt_param={}, keep_ori=False):
     """
+    1. Check parameter type (dict)
+    2. Normalize the sounds
+    3. Transform sounds into cochleagrams
+    4. Downsample cochleagrams and return in same format as input but with "subbands" field
+
+
+
     perform preprocessing for the CNN from Francl et al 2022 paper
     :param stim_dicts: output from stim_gen
     :param norm_param: dict, see normalize_binaural_stim
@@ -247,17 +282,18 @@ def process_stims(stim_dicts, norm_param={}, coch_param={}, filt_param={}, keep_
         filt_param['old_sr'] = target_sr
         coch_param['signal_rate'] = target_sr
 
-    # normalize each sounds
+    # normalize the sounds
     for stim_d in stim_dicts:
         sr = stim_d['label']['sampling_rate']
         stim_d['sig'], _ = normalize_binaural_stim(stim_d['sig'], sr, **norm_param)
 
+    # Get sampling rate for downsampling if supplied
     new_sr = 8000
     if 'new_sr' in filt_param.keys():
         new_sr = int(filt_param['new_sr'])
         _ = filt_param.pop('new_sr')
 
-    # run the cochleagram
+    # Transform sounds into cochleagrams
     for stim_d in stim_dicts:
         coch_subbands = cochleagram_wrapper(stim_d['sig'], **coch_param)
         # check the shape; for tensorflow, expand the first dimension
@@ -272,7 +308,7 @@ def process_stims(stim_dicts, norm_param={}, coch_param={}, filt_param={}, keep_
     # it makes sense to perform everything in CPU here
     with tf.device('/cpu:0'):
         ds_ratio = int(target_sr / new_sr)
-        ds_filter = make_downsample_filt(target_sr, new_sr, **filt_param, tensor=True)
+        ds_filter = make_downsample_filter(target_sr, new_sr, **filt_param, tensor=True)
 
         # construct a tf dataset from stim_dicts, and feed it into tensorflow down-sample
         data_gen = data_generator(stim_dicts)

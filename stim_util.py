@@ -29,7 +29,7 @@ def apply_hanning_window(stim, ramp_duration_ms, sample_rate=48000):
 
 # stim need to be standardized before feeding into cochleagram
 # TODO: in the model, the cochleagram is generated at 48000 Hz
-def normalize_binaural_stim(orig_stim, orig_sr, target_sr=48000, scaling_max=0.1, min_len=2):
+def normalize_binaural_stim(orig_stim: np.ndarray, orig_sr, target_sr=48000, scaling_max=0.1, min_len=2):
     # TODO: according to real_world_audio_rescale, after rescaling the values are in [-0.1, 0.1]
     # TODO: thus the scaling_max is set to 0.1 by default
     """

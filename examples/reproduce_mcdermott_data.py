@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import slab
 
-from CNN_preproc import process_stims
+from CNN_preproc import transform_stims_to_cochleagrams
 from stim_gen import augment_from_array, pick_hrtf_by_loc
 from tfrecord_gen import create_tfrecord, check_record
 
@@ -11,6 +11,7 @@ from tfrecord_gen import create_tfrecord, check_record
 # run them separately if you cannot run them in the same python session due to the RAM issue
 # for all the slab generation
 sample_rate = 44100
+
 # 16 white noise
 sigs = []
 for _ in range(16):
@@ -18,10 +19,12 @@ for _ in range(16):
 # binauralize the sounds using stim_gen
 stims_bi = []
 for sig in sigs:
-    stims_bi.extend(augment_from_array(sig.data, sig.samplerate))
+    # augment_from_array returns a list of dictionaries, each containing a binaural signal and its corresponding label dictionary
+    stims_bi.extend(augment_from_array(sig.data, sig.samplerate))  # Note: extend is used to flatten the list
+# Now we have a list of dictionaries (one per spatialized signal bc returns multiple; together with label dict)
 
 # preprocessing
-stims_bi = process_stims(stims_bi)
+stims_bi = transform_stims_to_cochleagrams(stims_bi)
 
 # write tfrecord
 rec_path = os.path.join('tfrecords', 'mcdermott')
@@ -41,12 +44,12 @@ stims_bi = []
 for sig in sigs:
     stims_bi.extend(augment_from_array(sig.data, sig.samplerate, hrtfs=hrtfs))
 # preprocessing
-stims_bi = process_stims(stims_bi)
+stim_cochleagrams = transform_stims_to_cochleagrams(stims_bi)
 
 # write tfrecord
 rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'broadband_noise_elevation.tfrecords')
-create_tfrecord(stims_bi, rec_file)
+create_tfrecord(stim_cochleagrams, rec_file)
 # check record file
 status = check_record(rec_file)
 
@@ -114,7 +117,7 @@ for ild in ILD_bias:
                                  'label': label_dict})
 
 # preprocessing and write
-stims_high_final = process_stims(stims_high_final)
+stims_high_final = transform_stims_to_cochleagrams(stims_high_final)
 # write tfrecord
 rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_high_ITDILD.tfrecords')
@@ -152,7 +155,7 @@ for ild in ILD_bias:
         stims_low_final.append({'sig': sig.data,
                                 'label': label_dict})
 # process and write
-stims_low_final = process_stims(stims_low_final)
+stims_low_final = transform_stims_to_cochleagrams(stims_low_final)
 # write tfrecord
 rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_low_ITDILD.tfrecords')
@@ -194,7 +197,7 @@ for cf in center_freq:
                 sigs_bp_bi.append(stb)
 
 # preprocessing
-sigs_bp_bi = process_stims(sigs_bp_bi)
+sigs_bp_bi = transform_stims_to_cochleagrams(sigs_bp_bi)
 # write tfrecord
 rec_path = os.path.join('tfrecords', 'mcdermott')
 rec_file = os.path.join(rec_path, 'noise_bandwidth.tfrecords')

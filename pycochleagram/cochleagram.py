@@ -128,8 +128,7 @@ def cochleagram(signal, sr, n, low_lim, hi_lim, sample_factor,
 
     # utils.filtshow(freqs, filts, hz_cutoffs, use_log_x=False)
 
-    freqs_to_plot = np.log10(freqs)
-
+    # freqs_to_plot = np.log10(freqs)
     # print(filts.shape)
     # plt.figure(figsize=(18,5))
     # # plt.plot(freqs_to_plot, filts[:,3:11], 'k')
@@ -175,7 +174,7 @@ def cochleagram(signal, sr, n, low_lim, hi_lim, sample_factor,
             sb_out = np.zeros(([batch_signal.shape[0]] + list(temp_sb.shape)))
         sb_out[i] = temp_sb
 
-    sb_out = sb_out.squeeze()
+    sb_out = sb_out.squeeze()  # In case there's only one sample in the batch
     if ret_mode == 'all':
         out_dict = {}
         # add all local variables to out_dict
@@ -184,7 +183,7 @@ def cochleagram(signal, sr, n, low_lim, hi_lim, sample_factor,
                 out_dict[k] = locals()[k]
         return out_dict
     else:
-        return sb_out
+        return sb_out  # Output shape: (batch_dim, n_filters, n_samples) if batch otherwise (n_filters, n_samples), type: np.ndarray
 
 
 def human_cochleagram(signal, sr, n=None, low_lim=50, hi_lim=20000,
