@@ -7,12 +7,14 @@ import sys
 from multiprocessing import Pool
 from pathlib import Path
 from typing import List, Dict, Generator, Tuple
+from time import strftime
 
 import numpy as np
 import scipy as sp
 import slab
 from slab import Filter
 from tqdm import tqdm
+import tensorflow as tf
 from nnresample import resample
 
 from CNN_preproc import cochleagram_wrapper, make_downsample_filter
@@ -130,7 +132,7 @@ def create_background(room_id: int,
         background_textures.append(spatialized_texture)
     # Need to supply starting sound for sum on which to add the textures
     summed_textures = sum(background_textures, start=slab.Sound(np.zeros_like(background_textures[0].data)))
-    normalized_background = summed_textures * (0.1 / np.max(np.abs(summed_textures.data)))
+    normalized_background = summed_textures * (0.99 / np.max(np.abs(summed_textures.data)))  # no attenuation here; 0.99 to avoid technical errors when persisting
     return normalized_background
 
 
@@ -159,7 +161,7 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
 def generate_training_samples_from_stim_path(stim_path: Path,
                                              brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
                                              path_to_brirs: Path = None
-                                             ) -> List[Tuple[slab.Sound, TrainingCoordinates]]:
+                                             ) -> List[Tuple[np.ndarray, TrainingCoordinates]]:
     #     -> Generator[
     # Tuple[slab.Sound, TrainingCoordinates], None, None]:
     """
@@ -189,8 +191,9 @@ def generate_training_samples_from_stim_path(stim_path: Path,
         normalized_sound = spatialized_sound * (0.1 / np.max(np.abs(spatialized_sound.data)))
         background = create_background(training_coordinates.room_id, training_coordinates.listener_position,
                                        brir_dict=brir_dict, path_to_brirs=path_to_brirs)
-        snr_factor = (10 ** (-random.uniform(5, 30) / 20))  # TODO: No idea if this is right...
-        combined_sound = normalized_sound + background * 0.1
+        snr_factor = (10 ** (-random.uniform(5, 30) / 20))  # TODO: Use slab
+        combined_sound = normalized_sound + background * snr_factor
+        combined_sound.play()
         # yield combined_sound, training_coordinates
         training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
     return training_samples
@@ -225,6 +228,8 @@ def transform_stim_to_cochleagram(stim: slab.Binaural):
     # Shape: (39, 48000, 2)
     # Downsample to: (39, 8000, 2)
     # TODO: Figure out dimension stuff; why is filter (1, filt_len, 2, 2)? What does stride=[1, 1, ds_ratio, 1] mean (the ones)?
+
+
 """
 - Probably using TF because 2d conv is faster than filtering all cochleagram channels separately
 -> Ideally profile TF 2d conv vs. nnresample vs. scipy.signal.resample vs. scipy.signal.fftconvolve
@@ -234,6 +239,7 @@ def transform_stim_to_cochleagram(stim: slab.Binaural):
 - Only decimating to 8kHz introduces aliasing, so we apply a filter before
 
 """
+
 
 def profile_transform_stim_to_cochleagram():
     stim = slab.Binaural(slab.Sound.pinknoise(duration=3.0, samplerate=48000))
@@ -270,14 +276,35 @@ def plot_slab_cochleagram(cochleagram):
     plt.show()
 
 
+def write_tfrecord(cochleagram, training_coords, writer):
+    """
+    Write a training sample to a tfrecord file
+    Args:
+        cochleagram:
+        training_coords:
+        writer:
+
+    Returns:
+
+    """
+    # TODO: Doesn't shuffle data
+    data = {'train/image': tf.train.Feature(
+        bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
+            'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
+            'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
+            'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
+            'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev]))
+            }
+
+    # write the single record into tfrecord file
+    example = tf.train.Example(features=tf.train.Features(feature=data))
+    # Serialize to string and write on the file
+    writer.write(example.SerializeToString())
+
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    training_samples = pickle.load(open('training_samples.pkl', 'rb'))
 
-
-
-    sys.exit(0)
     # Resample background sounds to 48kHz
     # for file in Path('resources', 'McDermott_Simoncelli_2011_168_Sound_Textures').glob('*.wav'):
     #     slab.Sound(file).resample(48000).write(file)
@@ -288,7 +315,8 @@ def main():
 
     # brir_dict = pickle.load(open('brir_dict_2024-09-11_13-51-58.pkl', 'rb'))
     stim_paths = list(Path('resources/uso_500ms_raw').glob('*.wav'))
-    path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
+    # path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
+    path_to_brirs = Path('data', 'brirs_hrtf_nh2_2024-09-23_17-07-30')
     print(stim_paths)
     # One process
     # i = 0
@@ -297,18 +325,18 @@ def main():
     #         sample.play(blocking=True)
     #     i += 1
 
-    # TODO TODAY
-    # TODO: apply cochleagram -> Go through reproduce_mcdermott_data.py, then CNN_preproc.py/process_stims() which is where cochleagram is created (needs tensorflow. Why? pycochleagram doesn't. port this part to TF2?)
+    # TODO Monday
     # TODO: save to tfrecord
     # TODO: Make 2 datasets out of the USOs with different HRTFs
+    # - Functionality to specify HRTF
+    # - get different HRTF, where? needs to have azimuth in 5º steps and elevation in 10º steps from 0 to 60
 
-    # TODO TOMORROW
+    # TODO Monday? :D should be doable
     # TODO: Get CNN running on lab machine
     # TODO: Run CNN evaluation on multiple datasets with different HRTFs, and see if elevation collapses
 
-
     # TODO: compare with McDermott's data generation pipeline
-
+    timestamp = strftime("%Y-%m-%d_%H-%M-%S")
     import cProfile, pstats
     with cProfile.Profile() as pr:
         bar = tqdm(desc='Generated training samples', position=1, unit='samples')
@@ -327,20 +355,26 @@ def main():
         #         training_samples.extend(samples_from_one_sound)
         #         bar.update(len(samples_from_one_sound))
 
+        Path('data', f'training_data_{timestamp}').mkdir(parents=True, exist_ok=True)
+        options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
+        writer = tf.io.TFRecordWriter(os.path.join('data', f'training_data_{timestamp}', f'training-data_hrtf-{"hrtf_nh2"}.tfrecord',), options=options)
         # Sequential
         training_samples = []
         for stim_path in stim_paths[:1]:
-            training_samples.extend(generate_training_samples_from_stim_path(stim_path, path_to_brirs=path_to_brirs))
-            bar.update(len(training_samples))
+            for training_sample, training_coords in generate_training_samples_from_stim_path(stim_path,
+                                                                                             path_to_brirs=path_to_brirs):
+                write_tfrecord(training_sample, training_coords, writer)
+                bar.update(1)
 
         bar.close()
+    writer.close()
 
     stats = pstats.Stats(pr)
     stats.sort_stats(pstats.SortKey.TIME)
     stats.print_stats()
     stats.dump_stats(filename='profile_stats.prof')
 
-    pickle.dump(training_samples, open('training_samples.pkl', 'wb'))
+    # pickle.dump(training_samples, open('training_samples.pkl', 'wb'))
 
     # print_data_generation_info({t: MCDERMOTT_ROOM_CONFIGS[t]})
     # PBAR.close()
@@ -354,8 +388,6 @@ def main():
     sys.exit(0)
 
     # Assuming that for each augmented sound the positions and background noises are chosen independently
-
-
 
 
 """
@@ -405,6 +437,5 @@ ncalls  tottime  percall  cumtime  percall filename:lineno(function)
 
 """
 
-
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()

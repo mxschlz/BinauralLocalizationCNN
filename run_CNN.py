@@ -223,6 +223,7 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                         n_sounds_perceived = decide_sound_presence(cd, criterion=net_params["decision_criterion"])
                     else:  # this is important
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
+                        # -> pd is model prediction, e_vars is ground truth
                     if is_msl:  # not important
                         cd_data.append(cd)
                         binary_label_data.append(binary_label)

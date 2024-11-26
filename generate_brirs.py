@@ -55,6 +55,9 @@ MCDERMOTT_ROOM_CONFIGS = {1: RoomConfig(RoomSize(9, 9, 10), [0.1, ]),  # TODO: A
                           4: RoomConfig(RoomSize(5, 8, 5), [0.1, ]),
                           5: RoomConfig(RoomSize(4, 4, 4), [0.1, ])}  # width, length from 3m to 4m bc src out of bounds
 
+CUSTOM_HRTF_FILENAME = 'hrtf_nh2.sofa'
+CUSTOM_HRTF = slab.HRTF(Path('resources', 'hrtfs', CUSTOM_HRTF_FILENAME))
+
 
 def now(): return strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -91,7 +94,7 @@ def run_brir_sim(brir_params: TrainingCoordinates[int, CartesianCoordinates, Sph
     room = slab.Room(size=MCDERMOTT_ROOM_CONFIGS[room_id].room_size, listener=[*listener_position, 1.4],
                      source=[*source_position, 1.4])
     # Trim prob not necessary; is already below length of samples (2s); trying to trim to 2s results in crash
-    return TrainingCoordinates(room_id, listener_position, source_position), room.hrir().resample(48000)
+    return TrainingCoordinates(room_id, listener_position, source_position), room.hrir(hrtf=CUSTOM_HRTF).resample(48000)
 
 
 def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brirs_individually: bool = True) -> None:
@@ -118,11 +121,11 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
     timestamp = now()
 
     if persist_brirs_individually:
-        Path(f'data/brirs_{timestamp}/').mkdir(parents=True, exist_ok=True)
+        Path(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/').mkdir(parents=True, exist_ok=True)
         with Pool() as pool:
             for result in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
                 # Persist the BRIRs individually
-                result[1].save(Path('data', f'brirs_{timestamp}', f'brir_{result[0]}.wav'))
+                result[1].save(Path('data', f'brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}', f'brir_{result[0]}.wav'))
                 # pickle.dump(result[1].resample(48000), open(f'data/brirs_{timestamp}/brir_{result[0]}.pkl', 'wb'))
 
                 # Resample 48 -> 35min, 502kB
@@ -132,13 +135,13 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
                 # difference of 3GB. 33GB vs 36GB, ok for 15 minutes speed improvement later
 
     else:
-        Path(f'data/brirs{timestamp}/').mkdir(parents=True, exist_ok=True)
+        Path(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/').mkdir(parents=True, exist_ok=True)
         brir_dict = dict()
         with Pool() as pool:
             for result in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
                 # Add the BRIRs to the dictionary and persist later
                 brir_dict[result[0]] = result[1]
-        pickle.dump(brir_dict, open(f'data/brirs_{timestamp}/brir_dict_{now()}.pkl', 'wb'))
+        pickle.dump(brir_dict, open(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/brir_dict_{now()}.pkl', 'wb'))
 
 
 def log_brir_generation_info(room_configs: Dict[int, RoomConfig]):
@@ -182,3 +185,11 @@ def calculate_listener_positions(room_size: RoomSize) -> List[CartesianCoordinat
         for y in range(nr_positions_y):
             positions.append(CartesianCoordinates(positions_x_start + x, positions_y_start + y))
     return positions
+
+
+def main() -> None:
+    generate_and_persist_BRIRs(MCDERMOTT_ROOM_CONFIGS)
+
+
+if __name__ == "__main__":
+    main()

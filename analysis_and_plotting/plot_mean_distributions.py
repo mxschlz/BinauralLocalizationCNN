@@ -3645,7 +3645,7 @@ def get_elevation_error_CIPIC(pd_dataframe_cipic, subject=None):
     pd_dataframe_cipic_filtered['predicted_azim'] = None
     pd_dataframe_cipic_filtered['predicted_elev'] = pd_dataframe_cipic_filtered['predicted'].apply(lambda x: x // 72)
     pd_dataframe_cipic_filtered['predicted_azim'] = pd_dataframe_cipic_filtered['predicted'].apply(lambda x: x % 72)
-    # Map elevation labels to indicies used for prediction for all subject data
+    # Map elevation labels to indices used for prediction for all subject data
     pd_dataframe_cipic_filtered['elev'] = pd_dataframe_cipic_filtered.apply(elevation_mapping, axis=1)
     pd_dataframe_cipic_filtered['azim'] = pd_dataframe_cipic_filtered.apply(azimuth_correction_hack, axis=1)
     # Front_back_folding
@@ -3656,7 +3656,7 @@ def get_elevation_error_CIPIC(pd_dataframe_cipic, subject=None):
     pd_dataframe_cipic_filtered['predicted_elev'] = pd_dataframe_cipic_filtered['predicted_elev'].apply(
         lambda x: x * 10)
     pd_dataframe_cipic_filtered['elev'] = pd_dataframe_cipic_filtered['elev'].apply(lambda x: x * 10)
-    # claculate error
+    # calculate error
     pd_dataframe_cipic_filtered['elev_error'] = (pd_dataframe_cipic_filtered['predicted_elev'] -
                                                  pd_dataframe_cipic_filtered['elev']).abs()
     pd_dataframe_cipic_filtered['azim_error'] = (pd_dataframe_cipic_filtered['predicted_azim'] -
