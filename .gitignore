@@ -4,6 +4,7 @@ data/
 resources/*/
 !resources/README_resources.md
 .DS_Store
+cache/
 
 
 # Byte-compiled / optimized / DLL files
