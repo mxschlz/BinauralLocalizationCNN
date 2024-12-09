@@ -2,11 +2,23 @@ import warnings
 
 import tensorflow as tf
 
-config_array = [[["/gpu:0"], ['conv', [2, 50, 32], [1, 4]], ['relu'], ['pool', [1, 4]]],
-                [["/gpu:1"], ['conv', [4, 20, 64], [1, 1]], ['bn'], ['relu'], ['pool', [1, 4]],
-                 ['conv', [8, 8, 128], [1, 1]], ['bn'], ['relu'], ['pool', [1, 4]], ['conv', [8, 8, 256], [1, 1]],
-                 ['bn'], ['relu'], ['pool', [1, 8]], ['conv', [8, 8, 512], [1, 1]], ['bn'], ['relu'], ['pool', [2, 2]]],
-                [["/gpu:2"], ['fc', 512], ['fc_bn'], ['fc_relu'], ['dropout'], ['out']]]
+# config_array = [[["/gpu:0"], ['conv', [2, 50, 32], [1, 4]], ['relu'], ['pool', [1, 4]]],
+#                 [["/gpu:1"], ['conv', [4, 20, 64], [1, 1]], ['bn'], ['relu'], ['pool', [1, 4]],
+#                  ['conv', [8, 8, 128], [1, 1]], ['bn'], ['relu'], ['pool', [1, 4]], ['conv', [8, 8, 256], [1, 1]],
+#                  ['bn'], ['relu'], ['pool', [1, 8]], ['conv', [8, 8, 512], [1, 1]], ['bn'], ['relu'], ['pool', [2, 2]]],
+#                 [["/gpu:2"], ['fc', 512], ['fc_bn'], ['fc_relu'], ['dropout'], ['out']]]
+
+config_array = [[['/gpu:0'], ['conv', [1, 8, 32], [1, 1]], ['relu'],
+  ['bn'], ['conv', [1, 64, 32], [1, 1]], ['relu'],
+  ['bn'], ['conv', [1, 64, 32], [1, 1]], ['pool', [1, 8]],
+  ['relu'], ['bn'], ['conv', [2, 4, 64], [1, 1]],
+  ['pool', [2, 4]], ['relu'], ['bn'],
+  ['conv', [3, 8, 128], [1, 1]], ['relu'], ['bn'],
+  ['conv', [3, 32, 128], [1, 1]], ['pool', [1, 4]],
+  ['relu'], ['bn'], ['conv', [3, 4, 256], [1, 1]],
+  ['relu'], ['bn'], ['conv', [3, 8, 256], [1, 1]],
+  ['pool', [1, 2]], ['relu'], ['bn'], ['fc', 512],
+  ['fc_relu'], ['fc_bn'], ['dropout'], ['out']]]
 
 """
 Config Array
@@ -20,7 +32,17 @@ config_array[0][1-n]: Layer 1 to n
 
 Layer definitions:
 'conv': Convolution layer ['conv', [kernel_height, kernel_width, num_filters], [stride_height, stride_width]]
+'relu': Rectified linear unit layer ['relu']
+'bn': Batch normalization layer ['bn']
+'pool': Pooling layer ['pool', [kernel_height, kernel_width]]
+'fc': Fully connected layer ['fc', num_neurons]
+'dropout'
+'out': Softmax layer w/ 504 classes
 
+"""
+
+"""
+batch_size = 16
 """
 
 
@@ -51,6 +73,8 @@ class NetBuilder:
             branched = False
 
         # net_input=tf.constant(1., shape=[16,72,30000,1],dtype=filter_dtype)
+        # Following
+        # -> net_input=tf.constant(1., shape=[16,39,48000,2],dtype=filter_dtype)
         # self.input=net_input
         self.input = subbands_batch
         self.input1 = 0
@@ -76,11 +100,13 @@ class NetBuilder:
                 gpu1 = '/CPU:0'
             start_point = 1
             if branched_point is False:
+            # -> see original code for branched implementation
                 with tf.device(gpu1):
                     for element in lst[1:]:  # Throw away the first element which is the device
                         if element[0] == 'conv':
                             size = self.input.get_shape()  # Shape of the input tensor
                             kernel_size = [element[1][0], element[1][1], size[3], element[1][2]]
+                            # -> (filter_height, filter_width, in_channels, out_channels)
                             stride_size = [1, element[2][0], element[2][1], 1]
                             filter_height = kernel_size[0]
                             in_height = int(size[1])
@@ -127,12 +153,21 @@ class NetBuilder:
 
                         elif element[0] == 'fc':
                             dim = self.input.get_shape()
+                            # -> (None, 19, 31, 256)
                             wd1 = tf.get_variable("wc_fc_{}".format(self.layer_fc),
                                                   [dim[3] * dim[1] * dim[2], element[1]],
                                                   filter_dtype, regularizer=regularizer)
+                            # tf.get_variable(name, shape, dtype, initializer) -> returns Variable with these attributes
+                            # -> (previous layer size: 19*31*256, this layer fc units: 512)
+                            # returned Variable has shape [19*31*256, 512] = [150784, 512]
                             dense_bias1 = tf.get_variable("wb_fc_{}".format(self.layer_fc1), element[1],
                                                           filter_dtype)
                             pool_flat = tf.reshape(self.input, [-1, wd1.get_shape().as_list()[0]])
+                            # tf.reshape(tensor, shape)
+                            # Variable.get_shape = Variable.shape -> returns TensorShape
+                            # TensorShape.as_list() -> returns list of ints
+                            # wd1.get_shape().as_list()[0] -> 150784
+                            # Reshape to [None, 150784], where None is inferred so that total size remains the same
                             fc1 = tf.add(tf.matmul(pool_flat, wd1), dense_bias1)
                             self.input = tf.cast(fc1, tf.float32)
 
@@ -166,11 +201,16 @@ class NetBuilder:
                             out = tf.add(tf.matmul(self.input, w_out), b_out)
                             self.input = tf.cast(out, tf.float32)
 
+                            # in TensorFlow 2 this would be:
+                            # self.input = tf.cast(out, filter_dtype)
+
+
                             self.layer_out += 1
                             print(element)
                             print(self.input)
         else:
             return self.input
+            # -> By this point self.input has all the layers applied to it
 
 
 if __name__ == '__main__':
