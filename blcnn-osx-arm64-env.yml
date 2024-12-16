@@ -1,0 +1,30 @@
+# Conda environment to run Tensorflow on Apple Silicon processors
+# Install with `conda env create -n blcnn-osx-arm64-env -f blcnn-osx-arm64-env.yml`
+
+# Tensorflow compatibility: https://pypi.org/project/tensorflow-metal/
+# -> tensorflow-metal:latest is 1.1.0 and requires tensorflow 2.14
+# and https://www.tensorflow.org/install/source
+# -> tensorflow 2.14 requires python 3.9-3.11 and numpy 1 (latest is 1.26.4)
+# and https://keras.io/getting_started/#compatibility-matrix
+# -> tensorflow 2.14 is only compatible with keras 2.14 and installs it automatically
+
+name: blcnn-osx-arm64-env
+channels:
+    # Conda tries to install packages from the listed channels in order
+    # Package priority: availability in highest channel in list, then highest package version, then highest build number
+    - conda-forge
+    - nodefaults  # remove default channel to avoid conflicts
+dependencies:
+    - python=3.11
+    - pip
+    - numpy=1.26.4
+    - tensorflow==2.14
+    - matplotlib  # current: 3.9.3 requires python>=3.9 and numpy>=1.23.0
+    - scipy  # current: 1.13 requires python>=3.9, <3.13 and numpy >=1.22.4, <2.3.0
+    - pillow  # current: 11 requires python>=3.9
+    - coloredlogs
+    - tqdm
+    ## PyPI packages
+    - pip:
+        - tensorflow-metal==1.1.0
+        - visualkeras
