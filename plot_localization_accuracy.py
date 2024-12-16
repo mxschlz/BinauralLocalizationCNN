@@ -8,6 +8,7 @@ import matplotlib
 from matplotlib import pyplot as plt
 import numpy as np
 import scipy
+from matplotlib.collections import LineCollection
 
 
 def localization_accuracy(data, show=True, plot_dim=2, binned=True, axis=None, show_single_responses=True,
@@ -300,7 +301,9 @@ def plot_accuracy_grid(data,
     # For each sector: compute mean speaker location, compute mean response location
     temp = []
     min_azim = np.min(azimuths)
+    max_azim = np.max(azimuths)
     min_elev = np.min(elevations)
+    max_elev = np.max(elevations)
     bin_width = ((np.max(azimuths) - min_azim) / (nr_azimuth_bins + 1)) * 2
     bin_height = ((np.max(elevations) - min_elev) / (nr_elevation_bins + 1)) * 2
     for azim_bin in range(nr_azimuth_bins):
@@ -354,19 +357,25 @@ def plot_accuracy_grid(data,
         show_single_response_lines = False
 
 
+    def colors(azim, elev, azim_min, azim_max, elev_min, elev_max):
+        r = (azim - azim_min) / (azim_max - azim_min)
+        b = (elev - elev_min) / (elev_max - elev_min)
+        g = 1 - (r + b) * .5
+        return r, g, b
 
-
-    # Plot mean predictions
-    if colored_mean_pred:
-        colors = plt.cm.rainbow(np.linspace(0, 1, len(mean_predictions)))
-    else:
-        colors = ['black' for _ in mean_predictions]
-    for (elev, azim, elev_pred, azim_pred), color in zip(mean_predictions, colors):
-        # Mean prediction points:
-        axis.scatter(elev_pred, azim_pred, color=color, s=15, zorder=3)
+    for azim, elev, azim_pred, elev_pred in mean_predictions:
+        if colored_mean_pred:
+            # Color of the point where the plotted point should be, to see how garbled the predictions are
+            color = colors(azim, elev, min_azim, max_azim, min_elev, max_elev)
+        else:
+            color = 'black'
+        axis.scatter(azim_pred, elev_pred, color=color, s=15, zorder=3)
         if show_mean_pred_lines:
             # Lines between points and corresponding speaker
-            axis.plot([elev, elev_pred], [azim, azim_pred], color=color, linewidth=0.5, zorder=3)
+            axis.plot([azim, azim_pred], [elev, elev_pred], color=color, linewidth=0.5, zorder=3)
+
+    # Plot reference color points
+    axis.scatter([min_azim, min_azim, max_azim, max_azim, min_azim], [min_elev, max_elev, max_elev, min_elev, min_elev], color=[colors(azim, elev, min_azim, max_azim, min_elev, max_elev) for azim, elev in [(min_azim, min_elev), (min_azim, max_elev), (max_azim, max_elev), (max_azim, min_elev), (min_azim, min_elev)]], s=30, marker='+', zorder=0)
 
 
     # Plot speaker grid and grid of mean predictions
@@ -411,12 +420,14 @@ def CNNpos_to_loc(CNN_pos, bin_size=5):
     :param bin_size: int, degree. note that elevation bin size is 2*bin_size
     :return: tuple, (azi, ele)
     """
-    n_azim = int(360 / bin_size)
+    n_azim = int(360 / bin_size)   # bin_size=5 -> 72
     div, mod = divmod(CNN_pos, n_azim)
     azim = bin_size * mod
     if azim >= 180:
         azim -= 360
-    elev = bin_size * 2 * div
+    elev = bin_size * div * 2
+    if elev > 60:
+        print('Elev > 60!', CNN_pos, azim, elev)
 
     # return elev, azim # wrong, test
     return azim, elev
@@ -473,7 +484,7 @@ def read_cnn_results(path: Path):
             # Header: model_pred,train/azim,train/elev
             # Row example: 249,[29],[8]
             d = np.array([[int(row['train/azim'][1:-1]) * 5,
-                           int(row['train/elev'][1:-1]) * 5,
+                           int(row['train/elev'][1:-1]) * 5,  # *2 not needed as output is in [0, 2, 4, 6, 8, 10, 12] for some reason
                            *CNNpos_to_loc(int(row['model_pred']))]
                           for row in reader])
             data = np.vstack((data, d))
@@ -481,10 +492,10 @@ def read_cnn_results(path: Path):
 
 
 def main() -> None:
-    # data = dummy_data(max_deviation=3, center_skew=5, nr_preds_per_speaker=3,
-    #                azimuth_min=-30, azimuth_max=30, azimuth_step=5,
-    #                elevation_min=-30, elevation_max=30, elevation_step=5)
-    data = read_cnn_results(Path('data', 'results', 'results_default'))
+    data = dummy_data(max_deviation=3, center_skew=5, nr_preds_per_speaker=3,
+                   azimuth_min=-30, azimuth_max=30, azimuth_step=5,
+                   elevation_min=-30, elevation_max=30, elevation_step=5)
+    # data = read_cnn_results(Path('data', 'results', 'results_default'))
     # data = read_cnn_results(Path('data', 'results', 'results_test_2024-11-25'))
     print(np.unique(data[:, :2], axis=0))
     print(f'All data shape: {data.shape}')
