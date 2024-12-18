@@ -317,6 +317,7 @@ def plot_accuracy_grid(data,
             # Select data points
             mask = (data[:, 0] >= azim_start) & (data[:, 0] <= azim_end) & (data[:, 1] >= elev_start) & (data[:, 1] <= elev_end)
             bin_data = np.mean(data[mask], axis=0)
+            # -> If certain coords don't have an example, the speaker grid won't be square
             temp.append((bin_data[0], bin_data[1], bin_data[2], bin_data[3]))
     binned_data = np.stack(temp)
 
@@ -325,7 +326,8 @@ def plot_accuracy_grid(data,
 
     # Set up plot
     plt.rcParams['figure.dpi'] = 200
-    fig, (axis, table_axis) = plt.subplots(2, 1, height_ratios=[4, 1])
+    # fig, (axis, table_axis) = plt.subplots(2, 1, height_ratios=[4, 1])
+    axis = plt.subplot()
     # axis.set_aspect('equal', adjustable='box')
 
     # Set limits (w/ margins) in advance to speed up drawing
@@ -349,7 +351,6 @@ def plot_accuracy_grid(data,
         # Add original speaker grid as dots in the background
         # print(*np.unique(data[:, :2], axis=0).T)
         # axis.scatter(*np.unique(data[:, :2], axis=0).T, marker=',', s=1, c='grey')
-
 
         mean_predictions = binned_data
         azimuths = bin_azimuths
@@ -382,6 +383,7 @@ def plot_accuracy_grid(data,
     for azim in azimuths:  # Vertical lines
         speaker_azims, speaker_elevs, pred_azims, pred_elevs = mean_predictions[mean_predictions[:, 0] == azim].T
         # Create boolean mask that's 1 iff the first element is our current azim, select those rows, then transpose to allow for unpacking
+        # Doesn't work in binned mode if there are target locations missing as the mean bin locations are not equal anymore for all azims and elevs in a row or column
 
         # Plot vertical speaker grid lines
         axis.plot(speaker_azims, speaker_elevs, color=speaker_grid_color, linewidth=0.5, linestyle=speaker_grid_linestyle, alpha=0.5, zorder=1)
@@ -401,10 +403,13 @@ def plot_accuracy_grid(data,
     # Plot lines for single predictions
     # For each single prediction select the corresponding mean point in mean_predictions, plot a line between each single data point and it's corresponding mean aggregated point
     for single_azim, single_elev, single_azim_pred, single_elev_pred in data:
+        # break
         if show_single_response_lines:
+            # For correct color: get coords of the target speaker location that the corresponding mean point belongs to
+            # For correct position: get coords of the single response and coords of the mean point it belongs to
             mask = (mean_predictions[:, 0] == single_azim) & (mean_predictions[:, 1] == single_elev)
-            [[mean_azim_pred, mean_elev_pred]] = mean_predictions[mask, 2:]  # Unpack possible because it must be a single value
-            axis.plot([mean_azim_pred, single_azim_pred], [mean_elev_pred, single_elev_pred], color='grey', linewidth=0.5, alpha=0.3, zorder=1)
+            [[mean_azim, mean_elev, mean_azim_pred, mean_elev_pred]] = mean_predictions[mask, :]  # Unpack possible because it must be a single value
+            axis.plot([mean_azim_pred, single_azim_pred], [mean_elev_pred, single_elev_pred], color=colors(mean_azim, mean_elev, min_azim, max_azim, min_elev, max_elev), linewidth=0.5, alpha=0.3, zorder=1)
         if show_single_responses:
             # Also plot single predictions
             axis.scatter(single_azim_pred, single_elev_pred, c='None', edgecolors=single_response_color, linewidth=single_response_linewidth, s=single_response_size, zorder=1)
@@ -483,24 +488,37 @@ def read_cnn_results(path: Path):
             # Turn reader into numpy array
             # Header: model_pred,train/azim,train/elev
             # Row example: 249,[29],[8]
-            d = np.array([[int(row['train/azim'][1:-1]) * 5,
-                           int(row['train/elev'][1:-1]) * 5,  # *2 not needed as output is in [0, 2, 4, 6, 8, 10, 12] for some reason
-                           *CNNpos_to_loc(int(row['model_pred']))]
+            d = np.array([[*CNNpos_to_loc(int(row['true_class'])),
+                           *CNNpos_to_loc(int(row['pred_class']))]
                           for row in reader])
+            # d = np.array([[int(row['train/azim'][1:-1]) * 5,
+            #                int(row['train/elev'][1:-1]) * 5,  # *2 not needed as output is in [0, 2, 4, 6, 8, 10, 12] for some reason
+            #                *CNNpos_to_loc(int(row['model_pred']))]
+            #               for row in reader])
             data = np.vstack((data, d))
     return data
 
+def read_single_cnn_result(path: Path):
+    with open(path, newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        return np.array([[*CNNpos_to_loc(int(row['true_class'])),
+                          *CNNpos_to_loc(int(row['pred_class']))]
+                         for row in reader])
+
+
 
 def main() -> None:
-    data = dummy_data(max_deviation=3, center_skew=5, nr_preds_per_speaker=3,
-                   azimuth_min=-30, azimuth_max=30, azimuth_step=5,
-                   elevation_min=-30, elevation_max=30, elevation_step=5)
+    # data = dummy_data(max_deviation=3, center_skew=5, nr_preds_per_speaker=3,
+    #                azimuth_min=-30, azimuth_max=30, azimuth_step=5,
+    #                elevation_min=-30, elevation_max=30, elevation_step=5)
     # data = read_cnn_results(Path('data', 'results', 'results_default'))
     # data = read_cnn_results(Path('data', 'results', 'results_test_2024-11-25'))
-    print(np.unique(data[:, :2], axis=0))
+    # data = read_single_cnn_result(Path('/home/neurobio/Repositories/afrancl-BinauralLocalizationCNN/tf1_out_2024-12-16_14-03-23.csv'))
+    data = read_cnn_results(Path('/home/neurobio/Repositories/afrancl-BinauralLocalizationCNN/output/tf_1_out_2024-12-16_15-11-12'))
+    # print(np.unique(data[:, :2], axis=0))
     print(f'All data shape: {data.shape}')
 
-    plot_accuracy_grid(data, nr_elevation_bins=5, nr_azimuth_bins=5, binned=False, show_single_responses=True, style='debug')
+    plot_accuracy_grid(data, nr_elevation_bins=7, nr_azimuth_bins=9, binned=True, show_single_responses=False, style='debug')
 
 
 if __name__ == "__main__":
