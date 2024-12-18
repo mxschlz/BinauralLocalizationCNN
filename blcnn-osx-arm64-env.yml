@@ -19,12 +19,16 @@ dependencies:
     - pip
     - numpy=1.26.4
     - tensorflow==2.14
-    - matplotlib  # current: 3.9.3 requires python>=3.9 and numpy>=1.23.0
+    - matplotlib==3.9.4  # current: 3.9.3 requires python>=3.9 and numpy>=1.23.0
     - scipy  # current: 1.13 requires python>=3.9, <3.13 and numpy >=1.22.4, <2.3.0
     - pillow  # current: 11 requires python>=3.9
     - coloredlogs
     - tqdm
+    - pytest
+    - h5netcdf
     ## PyPI packages
     - pip:
         - tensorflow-metal==1.1.0
         - visualkeras
+        - slab
+        - nnresample  # Probably remove later

@@ -12,11 +12,14 @@ dependencies:
     - pip
     - numpy=1.26.4
     - tensorflow==2.14
-    - matplotlib
+    - matplotlib==3.9.4
     - scipy
     - pillow
     - coloredlogs
     - tqdm
+    - pytest
+    - h5netcdf
     - pip:
         - visualkeras
         - slab
+        - nnresample
