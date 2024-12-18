@@ -1,0 +1,22 @@
+# Conda environment to run Tensorflow 2.14
+# Install with `conda env create -n blcnn-gpu-env -f blcnn-gpu-env.yml`
+
+# For info on picked versions see blcnn-osx-arm64-env.yml
+
+name: blcnn-gpu-env
+channels:
+    - conda-forge
+    - nodefaults
+dependencies:
+    - python=3.11
+    - pip
+    - numpy=1.26.4
+    - tensorflow==2.14
+    - matplotlib
+    - scipy
+    - pillow
+    - coloredlogs
+    - tqdm
+    - pip:
+        - visualkeras
+        - slab
