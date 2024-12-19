@@ -1,6 +1,7 @@
 import itertools
 import logging
 import pickle
+import sys
 from math import floor
 from multiprocessing import Pool
 from pathlib import Path
@@ -46,17 +47,43 @@ class TrainingCoordinates(NamedTuple):
     def __str__(self):
         return f'{self.room_id}r_{self.listener_position.x}x_{self.listener_position.y}y_{self.source_position.elev}e_{self.source_position.azim}a'
 
+#
+# MCDERMOTT_SOURCE_POSITIONS = [SphericalCoordinates(azimuth, elevation)
+#                               for azimuth, elevation in itertools.product(range(-180, 180, 5), range(0, 61, 10))]
 
+# vertical_polar coordinates from 0 to 355 counterclockwise
 MCDERMOTT_SOURCE_POSITIONS = [SphericalCoordinates(azimuth, elevation)
-                              for azimuth, elevation in itertools.product(range(-180, 180, 5), range(0, 61, 10))]
+                              for azimuth, elevation in itertools.product(range(0, 360, 5), range(0, 61, 10))]
 MCDERMOTT_ROOM_CONFIGS = {1: RoomConfig(RoomSize(9, 9, 10), [0.1, ]),  # TODO: Add real absorption coefficients
                           2: RoomConfig(RoomSize(4, 5, 3), [0.1, ]),  # height from 2m to 3m bc src out of bounds
                           3: RoomConfig(RoomSize(10, 10, 4), [0.1, ]),
                           4: RoomConfig(RoomSize(5, 8, 5), [0.1, ]),
                           5: RoomConfig(RoomSize(4, 4, 4), [0.1, ])}  # width, length from 3m to 4m bc src out of bounds
 
-CUSTOM_HRTF_FILENAME = 'hrtf_nh2.sofa'
-CUSTOM_HRTF = slab.HRTF(Path('resources', 'hrtfs', CUSTOM_HRTF_FILENAME))
+CUSTOM_HRTF_FILENAME = 'hrtf_b_nh2.sofa'
+CUSTOM_HRTF = slab.HRTF(Path('resources', 'data/hrtfs', CUSTOM_HRTF_FILENAME))
+# CUSTOM_HRTF_FILENAME = 'slab_default_kemar'
+# CUSTOM_HRTF = slab.HRTF.kemar()
+
+"""
+Francl used this KEMAR HRTF: https://sound.media.mit.edu/resources/KEMAR.html
+- it's @44.1kHz, same as default slab KEMAR
+- From the documentation:
+    Elevation and azimuth angles indicate the location of the source
+    relative to the KEMAR, such that elevation 0 azimuth 0 is directly in
+    front of the KEMAR, elevation 90 is directly above the KEMAR,
+    elevation 0 azimuth 90 is directly to the right of the KEMAR, etc.
+    -> contrast to counter-clockwise azimuth from 0 to 355 as used in slab, and in pictures in Francl's paper
+    
+-> For KEMAR I'll use the default one bc direction is already correct
+-> I'll use hrtf_b_nh2.sofa, which goes from 0º-0º ccw, so it should produce the correct results with slab's coordinates
+(hrtf_nh2.sofa also seems to work)
+"""
+
+# Maybe setting the default samplerate makes the resampling downstairs unnecessary?
+# slab.Signal.set_default_samplerate(48000)
+# CUSTOM_HRTF = slab.HRTF.kemar()
+print(f'HRTF samplerate: {CUSTOM_HRTF.samplerate}')
 
 
 def main() -> None:
@@ -89,10 +116,9 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
     if persist_brirs_individually:
         Path(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/').mkdir(parents=True, exist_ok=True)
         with Pool() as pool:
-            for result in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
+            for training_coords, brir in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
                 # Persist the BRIRs individually
-                result[1].save(Path('data', f'brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}', f'brir_{result[0]}.wav'))
-                # pickle.dump(result[1].resample(48000), open(f'data/brirs_{timestamp}/brir_{result[0]}.pkl', 'wb'))
+                brir.save(Path('data', f'brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}', f'brir_{training_coords}.wav'))
 
                 # Resample 48 -> 35min, 502kB
                 # no resample -> 20min, 460kB
