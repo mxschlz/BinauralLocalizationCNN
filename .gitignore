@@ -1,11 +1,20 @@
 .idea/
 
-data/
-resources/*/
-!resources/README_resources.md
+# Ignore content of data folders but keep structure
+data/hrtfs/**
+data/interim/**
+data/output/**
+data/processed/**
+data/raw/**
+data/_misc/
+
+models/**
+!data/raw/README_raw_data.md
 .DS_Store
 cache/
 
+# Keep all .gitkeep files
+!.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -248,7 +257,7 @@ fabric.properties
 /tfrecords/
 /netweights/
 /plots/
-/MSL/numjudge_rendered_stims/
+/legacy/MSL/numjudge_rendered_stims/
 /cipic_hrtfs/
 /netweights_retrained/
 /human_bevahiour/
@@ -256,5 +265,5 @@ fabric.properties
 /numjudge_full_set_talkers_clear_test.tfrecords
 /numjudge_full_set_talkers_clear_train.tfrecords
 /logfiles/
-/MSL/msl_templare_mcdermott.py
-/MSL/tf_record_CNN_spherical_gradcheckpoint_valid_pad_multi_source_fc_finetune.py
+/legacy/MSL/msl_templare_mcdermott.py
+/legacy/MSL/tf_record_CNN_spherical_gradcheckpoint_valid_pad_multi_source_fc_finetune.py

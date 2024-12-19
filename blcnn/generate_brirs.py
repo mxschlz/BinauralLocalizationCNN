@@ -61,7 +61,7 @@ MCDERMOTT_ROOM_CONFIGS = {1: RoomConfig(RoomSize(9, 9, 10), [0.1, ]),  # TODO: A
                           5: RoomConfig(RoomSize(4, 4, 4), [0.1, ])}  # width, length from 3m to 4m bc src out of bounds
 
 CUSTOM_HRTF_FILENAME = 'hrtf_b_nh2.sofa'
-CUSTOM_HRTF = slab.HRTF(Path('resources', 'data/hrtfs', CUSTOM_HRTF_FILENAME))
+CUSTOM_HRTF = slab.HRTF(Path('resources', '../data/hrtfs', CUSTOM_HRTF_FILENAME))
 # CUSTOM_HRTF_FILENAME = 'slab_default_kemar'
 # CUSTOM_HRTF = slab.HRTF.kemar()
 
@@ -118,7 +118,7 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
         with Pool() as pool:
             for training_coords, brir in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
                 # Persist the BRIRs individually
-                brir.save(Path('data', f'brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}', f'brir_{training_coords}.wav'))
+                brir.save(Path('../data', f'brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}', f'brir_{training_coords}.wav'))
 
                 # Resample 48 -> 35min, 502kB
                 # no resample -> 20min, 460kB

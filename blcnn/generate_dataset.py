@@ -1,10 +1,7 @@
+import json
 import logging
-import multiprocessing
 import os
-import pickle
 import random
-import sys
-from multiprocessing import Pool
 from pathlib import Path
 from typing import List, Dict, Generator, Tuple
 from time import strftime
@@ -15,19 +12,22 @@ import slab
 from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
-from nnresample import resample
 
-from CNN_preproc import cochleagram_wrapper, make_downsample_filter
+from CNN_preproc import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     MCDERMOTT_SOURCE_POSITIONS, CartesianCoordinates, MCDERMOTT_ROOM_CONFIGS
-from stim_util import zero_padding, normalize_binaural_stim
+from legacy.stim_util import zero_padding, normalize_binaural_stim
+
+
+# Needed bc there's a bug in slab.Signal's add method that doesn't preserve the samplerate
+slab.Signal.set_default_samplerate(48000)
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
 
     # Resample background sounds to 48kHz
-    # for file in Path('resources', 'McDermott_Simoncelli_2011_168_Sound_Textures').glob('*.wav'):
+    # for file in Path('resources/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz').glob('*.wav'):
     #     slab.Sound(file).resample(48000).write(file)
     # -> Assuming now that all textures are 48kHz
 
@@ -35,9 +35,11 @@ def main():
     # sys.exit(0)
 
     # brir_dict = pickle.load(open('brir_dict_2024-09-11_13-51-58.pkl', 'rb'))
-    stim_paths = list(Path('resources/uso_500ms_raw').glob('*.wav'))
+    stim_paths = list(Path('data/raw/uso_500ms_raw').glob('*.wav'))
     # path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
-    path_to_brirs = Path('data', 'brirs_hrtf_nh2_2024-09-23_17-07-30')
+    path_to_brirs = Path('data/interim/brirs_hrtf_b_nh2_2024-12-18_02-17-23')
+
+
     print(stim_paths)
     # One process
     # i = 0
@@ -46,74 +48,57 @@ def main():
     #         sample.play(blocking=True)
     #     i += 1
 
-    # TODO Monday
-    # TODO: save to tfrecord
-    # TODO: Make 2 datasets out of the USOs with different HRTFs
-    # - Functionality to specify HRTF
-    # - get different HRTF, where? needs to have azimuth in 5º steps and elevation in 10º steps from 0 to 60
 
-    # TODO Monday? :D should be doable
-    # TODO: Get CNN running on lab machine
-    # TODO: Run CNN evaluation on multiple datasets with different HRTFs, and see if elevation collapses
-
-    # TODO: compare with McDermott's data generation pipeline
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
-    import cProfile, pstats
-    with cProfile.Profile() as pr:
-        bar = tqdm(desc='Generated training samples', position=1, unit='samples')
-        # Parallel
-        # nr_workers = multiprocessing.cpu_count()
-        # div, mod = divmod(len(stim_paths), nr_workers)
-        # chunksize = div + 1 if mod else div
-        #
-        # logging.info(f'Using {nr_workers} workers')
-        # logging.info(f'Chunksizes: {chunksize}')
-        #
-        # training_samples = []
-        # with Pool(nr_workers) as pool:
-        #     for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths, chunksize=chunksize),
-        #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
-        #         training_samples.extend(samples_from_one_sound)
-        #         bar.update(len(samples_from_one_sound))
+    bar = tqdm(desc='Generated training samples', position=1, unit='samples')
+    # Intermediate dir to host different tfrecords w/ different HRTFs
+    # -> atm only one HRTF set is loaded
+    Path('data', f'cochleagrams_{timestamp}').mkdir(parents=True, exist_ok=True)
+    # Save metadata
+    bkgd_paths = list(Path('data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz').glob('*.wav'))
+    metadata = {"timestamp": timestamp,
+                "path_to_brirs": str(path_to_brirs),
+                "stim_paths": str(stim_paths),
+                "background paths": str(bkgd_paths)}
+    with open(os.path.join('data', f'cochleagrams_{timestamp}', 'metadata.json'), 'w') as f:
+        json.dump(metadata, f)
+    options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
+    writer = tf.io.TFRecordWriter(os.path.join('data', f'cochleagrams_{timestamp}', f'cochs_{"hrtf_b_nh2"}.tfrecord', ), options=options)
 
-        Path('data', f'training_data_{timestamp}').mkdir(parents=True, exist_ok=True)
-        options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
-        writer = tf.io.TFRecordWriter(os.path.join('data', f'training_data_{timestamp}', f'training-data_hrtf-{"hrtf_nh2"}.tfrecord',), options=options)
-        # Sequential
-        training_samples = []
-        for stim_path in stim_paths[:1]:
-            for training_sample, training_coords in generate_training_samples_from_stim_path(stim_path,
-                                                                                             path_to_brirs=path_to_brirs):
-                write_tfrecord(training_sample, training_coords, writer)
-                bar.update(1)
+    # # Parallel
+    # # nr_workers = multiprocessing.cpu_count()
+    # # div, mod = divmod(len(stim_paths), nr_workers)
+    # # chunksize = div + 1 if mod else div
+    # #
+    # # logging.info(f'Using {nr_workers} workers')
+    # # logging.info(f'Chunksizes: {chunksize}')
+    # #
+    # # training_samples = []
+    # # with Pool(nr_workers) as pool:
+    # #     for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths, chunksize=chunksize),
+    # #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
+    # #         training_samples.extend(samples_from_one_sound)
+    # #         bar.update(len(samples_from_one_sound))
+    #
+    # global inner_bar
+    # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
+    # Sequential
+    for stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths', total=len(stim_paths)):
+        for training_sample, training_coords in generate_training_samples_from_stim_path(stim_path,
+                                                                                         path_to_brirs=path_to_brirs):
+            write_tfrecord(training_sample, training_coords, writer)
+            # inner_bar.update(1)
 
-        bar.close()
+    # inner_bar.close()
     writer.close()
 
-    stats = pstats.Stats(pr)
-    stats.sort_stats(pstats.SortKey.TIME)
-    stats.print_stats()
-    stats.dump_stats(filename='profile_stats.prof')
-
-    # pickle.dump(training_samples, open('training_samples.pkl', 'wb'))
-
-    # print_data_generation_info({t: MCDERMOTT_ROOM_CONFIGS[t]})
-    # PBAR.close()
-    sys.exit(0)
-
-    # brir_dict = generate_BRIRs({t: MCDERMOTT_ROOM_CONFIGS[t]})
-    brir_dict = generate_BRIRs(MCDERMOTT_ROOM_CONFIGS)
-    brir_dict = pickle.load(open('brir_dict_2024-09-11_13-51-58.pkl', 'rb'))
-    # print(f'Dict size: {get_deep_size(brir_dict)} bytes')
-
-    sys.exit(0)
 
     # Assuming that for each augmented sound the positions and background noises are chosen independently
 
 
 def generate_training_samples_from_stim_path(stim_path: Path,
                                              brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
-                                             path_to_brirs: Path = None
+                                             path_to_brirs: Path = Path('data', 'brirs_2024-09-13_14-13-42')
                                              ) -> List[Tuple[np.ndarray, TrainingCoordinates]]:
     #     -> Generator[
     # Tuple[slab.Sound, TrainingCoordinates], None, None]:
@@ -126,7 +111,8 @@ def generate_training_samples_from_stim_path(stim_path: Path,
     Returns:
 
     """
-    path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
+    # path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
+    # global inner_bar
 
     raw_stim = slab.Sound(stim_path)
     # raw_stim.play()
@@ -140,15 +126,18 @@ def generate_training_samples_from_stim_path(stim_path: Path,
     training_samples = []
     # worker_nr = int(multiprocessing.current_process().name.split('-')[-1])
     # for spatialized_sound, training_coordinates in tqdm(stim_generator, desc= f'Process {worker_nr}',position=worker_nr, leave=False):
-    for spatialized_sound, training_coordinates in stim_generator:
+    for spatialized_sound, training_coordinates in tqdm(stim_generator, desc='Generated training samples', position=1, unit='samples', leave=False):
         normalized_sound = spatialized_sound * (0.1 / np.max(np.abs(spatialized_sound.data)))
-        background = create_background(training_coordinates.room_id, training_coordinates.listener_position,
-                                       brir_dict=brir_dict, path_to_brirs=path_to_brirs)
-        snr_factor = (10 ** (-random.uniform(5, 30) / 20))  # TODO: Use slab
-        combined_sound = normalized_sound + background * snr_factor
-        combined_sound.play()
+        # background = create_background(training_coordinates.room_id, training_coordinates.listener_position,
+        #                                brir_dict=brir_dict, path_to_brirs=path_to_brirs)
+        # snr_factor = (10 ** (-random.uniform(5, 30) / 20))  # TODO: Use slab
+        # combined_sound = normalized_sound + background * snr_factor
+        # combined_sound.play()
         # yield combined_sound, training_coordinates
-        training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
+        # training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
+        # normalized_sound.play()
+        training_samples.append((transform_stim_to_cochleagram(normalized_sound), training_coordinates))
+        # inner_bar.update(1)
     return training_samples
 
 
@@ -252,7 +241,7 @@ def create_background(room_id: int,
 
     """
     rand_texture_path = random.choice(
-        list(Path('resources', 'McDermott_Simoncelli_2011_168_Sound_Textures').glob('*.wav')))
+        list(Path('data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz').glob('*.wav')))
     background_textures = []
 
     for _ in range(random.randint(3, 8)):
@@ -328,6 +317,7 @@ def transform_stim_to_cochleagram(stim: slab.Binaural):
     normalized_stim, sr = normalize_binaural_stim(stim.data, stim.samplerate)
     cochleagram = cochleagram_wrapper(normalized_stim)
     # -> low subband index is low frequency band; plot cochleagrams them upside down
+    return cochleagram
 
     # print(cochleagram.shape, type(cochleagram))
     # downsampled = slab.Signal(cochleagram.T).resample(8000)
