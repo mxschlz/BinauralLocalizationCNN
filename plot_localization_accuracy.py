@@ -325,7 +325,7 @@ def plot_accuracy_grid(data,
     bin_elevations = np.unique(binned_data[:, 1])
 
     # Set up plot
-    plt.rcParams['figure.dpi'] = 200
+    plt.rcParams['figure.dpi'] = 400
     # fig, (axis, table_axis) = plt.subplots(2, 1, height_ratios=[4, 1])
     axis = plt.subplot()
     # axis.set_aspect('equal', adjustable='box')
@@ -409,7 +409,7 @@ def plot_accuracy_grid(data,
             # For correct position: get coords of the single response and coords of the mean point it belongs to
             mask = (mean_predictions[:, 0] == single_azim) & (mean_predictions[:, 1] == single_elev)
             [[mean_azim, mean_elev, mean_azim_pred, mean_elev_pred]] = mean_predictions[mask, :]  # Unpack possible because it must be a single value
-            axis.plot([mean_azim_pred, single_azim_pred], [mean_elev_pred, single_elev_pred], color=colors(mean_azim, mean_elev, min_azim, max_azim, min_elev, max_elev), linewidth=0.5, alpha=0.3, zorder=1)
+            axis.plot([mean_azim_pred, single_azim_pred], [mean_elev_pred, single_elev_pred], color=colors(mean_azim, mean_elev, min_azim, max_azim, min_elev, max_elev), linestyle='--', linewidth=0.2, alpha=0.3, zorder=1)
         if show_single_responses:
             # Also plot single predictions
             axis.scatter(single_azim_pred, single_elev_pred, c='None', edgecolors=single_response_color, linewidth=single_response_linewidth, s=single_response_size, zorder=1)
@@ -430,10 +430,15 @@ def CNNpos_to_loc(CNN_pos, bin_size=5):
     azim = bin_size * mod
     if azim >= 180:
         azim -= 360
+    # Fold back to front
+    if azim > 90:
+        azim = 180 - azim
+    elif azim < -90:
+        azim = -180 - azim
+
     elev = bin_size * div * 2
     if elev > 60:
         print('Elev > 60!', CNN_pos, azim, elev)
-
     # return elev, azim # wrong, test
     return azim, elev
 
@@ -508,13 +513,16 @@ def read_single_cnn_result(path: Path):
 
 
 def main() -> None:
-    # data = dummy_data(max_deviation=3, center_skew=5, nr_preds_per_speaker=3,
+    # data = dummy_data(max_deviation=3, center_skew=2, nr_preds_per_speaker=3,
     #                azimuth_min=-30, azimuth_max=30, azimuth_step=5,
     #                elevation_min=-30, elevation_max=30, elevation_step=5)
     # data = read_cnn_results(Path('data', 'results', 'results_default'))
     # data = read_cnn_results(Path('data', 'results', 'results_test_2024-11-25'))
     # data = read_single_cnn_result(Path('/home/neurobio/Repositories/afrancl-BinauralLocalizationCNN/tf1_out_2024-12-16_14-03-23.csv'))
-    data = read_cnn_results(Path('/home/neurobio/Repositories/afrancl-BinauralLocalizationCNN/output/tf_1_out_2024-12-16_15-11-12'))
+    # data = read_single_cnn_result(Path('/Users/david/Repositories/ma/BinauralLocalizationCNN/output/for_cochleagrams_2024-12-17_19-14-28/net1_2024-12-18_01-43-15.csv'))
+    data = read_single_cnn_result(Path('/output/for_cochleagrams_2024-12-18_02-36-53/net1_2024-12-18_10-16-06.csv'))
+    # data = read_single_cnn_result(Path('/Users/david/Repositories/ma/BinauralLocalizationCNN/output/net1_2024-12-17_03-15-21.csv'))
+
     # print(np.unique(data[:, :2], axis=0))
     print(f'All data shape: {data.shape}')
 
