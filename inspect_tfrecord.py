@@ -1,25 +1,23 @@
-import json
-import io
-import sys
-import warnings
-from functools import lru_cache
 from pathlib import Path
-from pprint import PrettyPrinter
-import json
-from collections import Counter
-from typing import Tuple, List
+import logging
+from pathlib import Path
+from typing import List
 
-import scipy as sp
-import tensorflow as tf
-from tensorflow.core.example.feature_pb2 import Feature
-import numpy as np
-from PIL import Image
-from tqdm import tqdm
+import coloredlogs
 import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from PIL import Image, ImageDraw, ImageFont
+from tqdm import tqdm
 
 from persistent_cache import persistent_cache
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+
+# Features in a tfrecord file, more are possible
 # features = {
 #     "train/image": tf.train.Feature(bytes_list=tf.train.BytesList(value=[])),
 #     "train/image_width": tf.train.Feature(int64_list=tf.train.Int64List(value=[])),
@@ -28,7 +26,119 @@ from persistent_cache import persistent_cache
 #     "train/azim": tf.train.Feature(int64_list=tf.train.Int64List(value=[]))
 # }
 
-# Recursively generate pretty print of arbitrary objects
+
+def main() -> None:
+    inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams_2024-12-17_19-14-28/cochs_hrtf_slab_default_kemar.tfrecord"))
+
+
+def inspect_data(path: Path):
+    dataset = tf.data.TFRecordDataset(path, compression_type="GZIP")
+    elevs, azims = extract_elev_azim(dataset, persistent_cache_key=path)
+
+    print('#################################################################')
+    print('#################### .tfrecord data analysis ####################')
+    print('#################################################################')
+    print(f'Dataset path: {path}')
+    print(f'Contains {dataset.cardinality()} examples (-1 is infinite cardinality, -2 is unknown cardinality)')
+    print(f'\nOptions (showing only populated values): ')
+    print_pprint(dataset.options(), suppress_none_values=True)
+
+    labels = np.array([elevs, azims]).T
+    print(f'\nFound {len(labels)} examples')
+    print('Examples:\n', labels[:5])
+    unique_labels, unique_label_counts = np.unique(labels, axis=0, return_counts=True)
+
+    # Elevations
+    elev_step = np.min(np.diff(np.unique(elevs)))  # smallest elevation step
+    print(f'\nExtracted elev range (min / max / smallest step): {min(elevs)} / {max(elevs)} / {elev_step}')
+    possible_elevs = (max(elevs) - min(elevs)) // elev_step + 1
+    print(f'Possible elevs: {possible_elevs}')
+    print(f'Elevs found: {len(np.unique(elevs))}')
+    missing_elevs = [elev for elev in range(min(elevs), max(elevs) + 1, elev_step) if elev not in elevs]
+    print(f'Missing elevations: {missing_elevs}')
+
+    # Azimuths
+    azim_step = np.min(np.diff(np.unique(azims)))
+    print(f'\nExtracted azim range (min / max / smallest step): {min(azims)} / {max(azims)} / {azim_step}')
+    # Warn the user if not 0 <= azim <= 355
+    if min(azims) < 0 or max(azims) > 355:
+        logger.warning('Azimuths are not in the range 0 <= azim <= 355')
+    possible_azims = (max(azims) - min(azims)) // azim_step + 1
+    print(f'Possible elevs: {possible_azims}')
+    print(f'Azims found: {len(np.unique(azims))}')
+    missing_azims = [azim for azim in range(min(azims), max(azims) + 1, azim_step) if azim not in azims]
+    print(f'Missing azimuths: {missing_azims}')
+
+    print(f'\nPossible speaker locations: {possible_elevs * possible_azims}')
+    print(f'Speaker locations in data: {len(np.unique(labels, axis=0))}')
+    print('\n\n')
+
+    # Plot the speaker locations, area of circle is proportional to number of examples
+    normalized_circle_sizes = 50 * (unique_label_counts / unique_label_counts.max())
+    plt.scatter(unique_labels[:, 1], unique_labels[:, 0], s=normalized_circle_sizes)
+    plt.xlabel('Azimuth')
+    plt.ylabel('Elevation')
+    plt.title(str(path).split("data/")[-1], fontdict={'fontsize': 10})
+    plt.suptitle('Data Distribution')
+    plt.show()
+
+    # Print all information in the first example
+    raw_example = dataset.take(1).get_single_element().numpy()
+    example = tf.train.Example()
+    example.ParseFromString(raw_example)
+    print('Contents of one Example in the dataset:')
+    for key, value in example.features.feature.items():
+        if key == 'train/image':
+            print(f'example[\'{key}\'] = {str(value)[:50]} ... {str(value)[-50:]}\n')
+        else:
+            print(f'example[\'{key}\'] = {value}\n')
+
+    # Plot the first cochleagram
+    image_bytes = example.features.feature['train/image'].bytes_list.value[0]
+    example_numpy_array = np.frombuffer(image_bytes, dtype=np.float32)
+    normalized_array = example_numpy_array * (255.0 / example_numpy_array.max())
+    try:
+        reshaped = normalized_array.reshape(39, 48000, 2)
+    except ValueError:
+        try:
+            reshaped = normalized_array.reshape(39, 8000, 2)
+        except ValueError:
+            logger.error('Could not reshape array, cochleagram should be 48000 or 8000 samples long')
+    img = Image.fromarray(reshaped[:, :, 1])
+    # img = img.crop((12000, 0, 16000, 39))
+    img = img.resize((4000, 1000), resample=Image.Resampling.NEAREST)
+    ImageDraw.Draw(img).text(
+        xy=(20, 20),
+        text=f'Example cochleagram from data/{str(path).split("data/")[-1]},\nimage normalized and resized (might lose detail)',
+        fill=255,
+        font=ImageFont.load_default(size=36))
+    img.show()
+
+
+@persistent_cache
+def extract_elev_azim(dataset: tf.data.TFRecordDataset) -> (List, List):
+    # assert key is not None, 'Key must be provided for caching'
+    elevs = []
+    azims = []
+    for raw_record in tqdm(dataset, desc='Extracting elevations and azimuths'):
+        example = tf.train.Example()
+        example.ParseFromString(raw_record.numpy())
+        # Extract the label from the example
+        elev = example.features.feature['train/elev'].int64_list.value[0]
+        azim = example.features.feature['train/azim'].int64_list.value[0]
+
+        elevs.append(elev)
+        azims.append(azim)
+    return elevs, azims
+
+
+def print_pprint(*args, **kwargs):
+    output = generate_pprint(*args, **kwargs)
+    for line in output:
+        print(line)
+
+
+# Adapted from https://gist.github.com/fonic/dfcaa350d5fb57835cf6c1689d251912
 def generate_pprint(obj, level_indent="  ", max_depth=None, verbose_output=True,
                     justify_output=True, prevent_loops=True, prevent_revisit=False,
                     explore_objects=True, excluded_ids=[], visited_ids=[],
@@ -260,166 +370,5 @@ def generate_pprint(obj, level_indent="  ", max_depth=None, verbose_output=True,
     return output
 
 
-# Convenience wrapper for generate_pprint()
-def print_pprint(*args, **kwargs):
-    output = generate_pprint(*args, **kwargs)
-    for line in output:
-        print(line)
-
-
-@persistent_cache
-def extract_elev_azim(dataset: tf.data.TFRecordDataset) -> (List, List):
-    # assert key is not None, 'Key must be provided for caching'
-    elevs = []
-    azims = []
-    for raw_record in tqdm(dataset, desc='Extracting elevations and azimuths'):
-        example = tf.train.Example()
-        example.ParseFromString(raw_record.numpy())
-        # Extract the label from the example
-        elev = example.features.feature['train/elev'].int64_list.value[0]
-        azim = example.features.feature['train/azim'].int64_list.value[0]
-
-        elevs.append(elev)
-        azims.append(azim)
-    return elevs, azims
-
-
-def inspect_data(path: Path):
-    dataset = tf.data.TFRecordDataset(path, compression_type="GZIP")
-    elevs, azims = extract_elev_azim(dataset, persistent_cache_key=path)
-
-    print('#################################################################')
-    print('#################### .tfrecord data analysis ####################')
-    print('#################################################################')
-    print(f'Dataset path: {path}')
-    print(f'Contains {dataset.cardinality()} examples (-1 is infinite cardinality, -2 is unknown cardinality)')
-    print(f'\nOptions (showing only populated values): ')
-    print_pprint(dataset.options(), suppress_none_values=True)
-
-    labels = np.array([elevs, azims]).T
-    print(f'\nFound {len(labels)} examples')
-    unique_labels, unique_label_counts = np.unique(labels, axis=0, return_counts=True)
-    # Calculate smallest elevation step
-    elev_step = np.min(np.diff(np.unique(elevs)))
-    print(f'\nExtracted elev range (min / max / smallest step): {min(elevs)} / {max(elevs)} / {elev_step}')
-    possible_elevs = (max(elevs) - min(elevs)) // elev_step + 1
-    print(f'Possible elevs: {possible_elevs}')
-    print(f'Elevs found: {len(np.unique(elevs))}')
-    missing_elevs = [elev for elev in range(min(elevs), max(elevs) + 1, elev_step) if elev not in elevs]
-    print(f'Missing elevations: {missing_elevs}')
-
-    azim_step = np.min(np.diff(np.unique(azims)))
-    print(f'\nExtracted azim range (min / max / smallest step): {min(azims)} / {max(azims)} / {azim_step}')
-    # Warn the user if not 0 <= azim <= 355
-    if min(azims) < 0 or max(azims) > 355:
-        warnings.warn('Azimuths are not in the range 0 <= azim <= 355')
-    possible_azims = (max(azims) - min(azims)) // azim_step + 1
-    print(f'Possible elevs: {possible_azims}')
-    print(f'Azims found: {len(np.unique(azims))}')
-    missing_azims = [azim for azim in range(min(azims), max(azims) + 1, azim_step) if azim not in azims]
-    print(f'Missing azimuths: {missing_azims}')
-
-    print(f'\nPossible speaker locations: {possible_elevs * possible_azims}')
-    print(f'Speaker locations in data: {len(np.unique(labels, axis=0))}')
-    print('\n\n')
-
-    # Plot the speaker locations, area of circle is proportional to number of examples
-    normalized_circle_sizes = 50 * (unique_label_counts / unique_label_counts.max())
-    plt.scatter(unique_labels[:, 1], unique_labels[:, 0], s=normalized_circle_sizes)
-    plt.xlabel('Azimuth')
-    plt.ylabel('Elevation')
-    plt.title(path.as_posix(), fontdict={'fontsize': 10})
-    # subtitle path name
-    plt.suptitle('Data Distribution')
-    plt.show()
-
-
-def inspect_tfrecord():
-    """
-    Inspect the structure of a .tfrecord file
-    unfinished
-    Returns:
-
-    """
-    # Each  in a .tfrecord file is of type:
-    # A .tfrecord file has the following type structure:
-    # List[Dict[str,                 -> Each row / record is an Example, which is a dict that
-    #                                   contains a key/value store "features"
-    #                 List[int64],      where each feature can be of a different type
-    #                 List[float]]]
-
-    # record = tf.io.parse_single_example(raw_record, features)
-    # print(example["train/image_width"])
-    for key, value in dict(example.features.feature).items():
-        print(f'Key: {key}\n'
-              f'Value Type: {type(value)}\n'
-              f'Value Length: {len(str(value))}\n'
-              f'Value: {str(value)[:100]}\n')
-
-    example_bytes = dict(example.features.feature)['train/image'].bytes_list.value[0]
-    print(np.frombuffer(example_bytes, dtype=np.float32).shape)
-    # Orig data from McDermott is at 48kHz, own data is at 8kHz. The paper states it should be at 8kHz.
-    example_numpy_array = np.frombuffer(example_bytes, dtype=np.float32).reshape(39, 8000, 2)
-    normalized_array = example_numpy_array * (255.0 / example_numpy_array.max())
-    # print(example_numpy_array[:,:,1].shape)
-    img = Image.fromarray(normalized_array[:, :, 1])
-    img = img.resize((4800, 3900), resample=Image.Resampling.NEAREST)
-    # img = img.crop((0, 0, 16000, 20))
-    # img = img.resize((16000, 20000))
-    # img.show()
-    # print(image_array)
-
-
-def downsample(in_path: Path, out_path: Path):
-    # Load the dataset, downsample images to 8kHz, and save to a new dataset
-    raw_dataset = tf.data.TFRecordDataset(in_path, compression_type="GZIP")
-    c = 0
-    for _ in raw_dataset:
-        c += 1
-    # Create a new dataset
-    writer = tf.io.TFRecordWriter(out_path, options="GZIP")
-
-    for raw_record in tqdm(raw_dataset, total=c):
-        example = tf.train.Example()
-        example.ParseFromString(raw_record.numpy())
-        example_dict = dict(example.features.feature)
-        example_bytes = dict(example.features.feature)['train/image'].bytes_list.value[0]
-        example_numpy_array = np.frombuffer(example_bytes, dtype=np.float32).reshape(39, 48000, 2)
-        downsampled = sp.signal.resample(example_numpy_array, 8000, axis=1)
-        # print(downsampled.shape)
-        # sys.exit()
-        # Save the downsampled image to the new dataset
-        example_dict['train/image'].bytes_list.value[0] = downsampled.tobytes()
-        example = tf.train.Example(features=tf.train.Features(feature=example_dict))
-        writer.write(example.SerializeToString())
-    writer.close()
-
-
-class CroppingPrettyPrinter(PrettyPrinter):
-    # From: https://stackoverflow.com/a/38534524
-    def __init__(self, *args, **kwargs):
-        self.maxlist = kwargs.pop('maxlist', 6)
-        return PrettyPrinter.__init__(self, *args, **kwargs)
-
-    def _format(self, obj, stream, indent, allowance, context, level):
-        if isinstance(obj, list):
-            # If object is a list, crop a copy of it according to self.maxlist
-            # and append an ellipsis
-            if len(obj) > self.maxlist:
-                cropped_obj = obj[:self.maxlist] + ['...']
-                return PrettyPrinter._format(
-                    self, cropped_obj, stream, indent,
-                    allowance, context, level)
-
-        # Let the original implementation handle anything else
-        # Note: No use of super() because PrettyPrinter is an old-style class
-        return PrettyPrinter._format(
-            self, obj, stream, indent, allowance, context, level)
-
-
 if __name__ == "__main__":
-    # downsample(Path("./data/training_data_orig_mcdermott.tfrecord"), Path("./data/training_data_orig_mcdermott_8kHz.tfrecord"))
-
-    inspect_data(Path("./data/training_data_2024-09-23_16-38-47/training-data_hrtf-default.tfrecord"))
-    inspect_data(Path("./data/training_data_orig_mcdermott_8kHz.tfrecord"))
-    # inspect_data(Path("./data/training_data_orig_mcdermott.tfrecord"))
+    main()
