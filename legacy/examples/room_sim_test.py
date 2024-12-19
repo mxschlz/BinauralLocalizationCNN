@@ -4,7 +4,7 @@ import numpy as np
 import pyroomacoustics as pra
 from scipy.io import wavfile
 
-data_path = os.path.join('..', 'tfrecords', 'origin')
+data_path = os.path.join('../..', 'tfrecords', 'origin')
 wav_ori = 'test.wav'
 wf = os.path.join(data_path, wav_ori)
 sf, sig_ori = wavfile.read(wf)

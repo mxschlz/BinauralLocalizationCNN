@@ -1,6 +1,6 @@
 import os
 
-from run_CNN import run_CNN
+from legacy.run_CNN import run_CNN
 
 CONFIG_TEST = dict(DEFAULT_NET_PARAM={'cpu_only': False, 'regularizer': None, "n_classes_localization": 504},
                    DEFAULT_COST_PARAM={"multi_source_localization": False},

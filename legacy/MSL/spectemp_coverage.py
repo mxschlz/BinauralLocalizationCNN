@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import slab
 
-from analysis_and_plotting.misc import spectemp_coverage
+from legacy.analysis_and_plotting.misc import spectemp_coverage
 
 plt.style.use("science")
 import seaborn as sns

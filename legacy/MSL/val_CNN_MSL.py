@@ -1,7 +1,7 @@
 import os
 
-from MSL.config_MSL import CONFIG_TEST as cfg
-from run_CNN import run_CNN
+from legacy.MSL.config_MSL import CONFIG_TEST as cfg
+from legacy.run_CNN import run_CNN
 
 # MSL
 stim_tfrecs = os.path.join("tfrecords/numjudge_*test_azi*.tfrecords")

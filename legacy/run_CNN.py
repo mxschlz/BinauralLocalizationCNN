@@ -124,6 +124,9 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
         accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
     elif not is_msl:  # single sound source localization
         cost, net_labels = cost_function(data_samp, net_out, **cost_params)  # get labels and cost function
+
+
+        # Building tensors on top / after the last tensor of the network:
         cond_dist = tf.nn.softmax(net_out)  # use softmax distribution
         # Evaluate model
         net_pred = tf.argmax(cond_dist, 1)  # get the maximum probability value
@@ -224,6 +227,15 @@ def run_CNN(stim_tfrec_pattern, trainedNet_path, cfg, save_name=None,
                     else:  # this is important
                         pd, pd_corr, cd, e_vars = sess.run([net_pred, correct_pred, cond_dist, eval_vars])
                         # -> pd is model prediction, e_vars is ground truth
+
+                        # Tensors to evaluate in the session (all have shape (batch_size) so (16), I think):
+                        # net_pred is the model prediction: argmax(softmax(net_out)) (where net_out is a logit tensor)
+                        # correct_pred is boolean tensor whether the model prediction is correct: equal(argmax(net_out), net_labels)
+                        # cond_dist is prob dist of prediction: softmax(net_out)
+                        # eval_vars is the ground truth: net_labels -> can't wrap my head around how it's created in the code above...
+
+                        # Output of the session: same shape as input with leaves replaced by the values of the tensors returned by the session
+
                     if is_msl:  # not important
                         cd_data.append(cd)
                         binary_label_data.append(binary_label)

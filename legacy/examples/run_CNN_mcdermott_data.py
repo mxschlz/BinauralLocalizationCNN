@@ -1,7 +1,7 @@
 import os
 import logging
 
-from run_CNN import run_CNN
+from legacy.run_CNN import run_CNN
 
 # Make logging colorful and verbose
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)

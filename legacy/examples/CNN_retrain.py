@@ -10,11 +10,11 @@ import tensorflow as tf
 from tensorflow.python.ops import gradients
 
 # custom memory saving gradient
-import memory_saving_gradients
-from CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
-from MSL.config_MSL import CONFIG_TRAIN as cfg
-from NetBuilder import NetBuilder
-from run_CNN import update_param_dict
+from legacy import memory_saving_gradients
+from legacy.CNN_util import build_tfrecords_iterator, get_feature_dict, cost_function
+from legacy.MSL.config_MSL import CONFIG_TRAIN as cfg
+from legacy.NetBuilder import NetBuilder
+from legacy.run_CNN import update_param_dict
 
 # import mem_util
 

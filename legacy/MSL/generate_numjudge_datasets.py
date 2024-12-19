@@ -6,10 +6,10 @@ import numpy as np
 import slab
 
 from CNN_preproc import transform_stims_to_cochleagrams
-from CNN_util import get_dataset_partitions
-from stim_gen import render_stims
-from stim_util import zero_padding
-from tfrecord_gen import create_tfrecord, check_record
+from legacy.CNN_util import get_dataset_partitions
+from legacy.stim_gen import render_stims
+from legacy.stim_util import zero_padding
+from legacy.tfrecord_gen import create_tfrecord, check_record
 
 # PIPELINE FOR NUMJUDGE TFRECORD GENERATION
 # Render each talker for a given spatial position (azi, ele) in a trial separately.

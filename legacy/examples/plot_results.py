@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from CNN_result_analysis import read_resfiles, CNNpos_to_loc
+from legacy.CNN_result_analysis import read_resfiles, CNNpos_to_loc
 
 res_path = 'Result'
 res_patt_azi = os.path.join(res_path, 'broadband_noise_azimuth_net5_*csv')

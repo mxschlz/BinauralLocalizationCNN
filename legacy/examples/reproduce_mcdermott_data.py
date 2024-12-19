@@ -4,8 +4,8 @@ from copy import deepcopy
 import slab
 
 from CNN_preproc import transform_stims_to_cochleagrams
-from stim_gen import augment_from_array, pick_hrtf_by_loc
-from tfrecord_gen import create_tfrecord, check_record
+from legacy.stim_gen import augment_from_array, pick_hrtf_by_loc
+from legacy.tfrecord_gen import create_tfrecord, check_record
 
 # NOTE: cochleagram takes a lot of RAM; large datasets, e.g. ITD/ILD takes ~10 GB ram
 # run them separately if you cannot run them in the same python session due to the RAM issue

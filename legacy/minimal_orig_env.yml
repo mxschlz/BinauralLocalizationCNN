@@ -1,6 +1,7 @@
 name: minimal_orig_env
 channels:
   - defaults
+  - anaconda
 dependencies:
   - python=3.5.2
   - pip:

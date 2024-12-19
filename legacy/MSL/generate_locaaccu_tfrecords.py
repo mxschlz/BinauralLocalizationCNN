@@ -1,11 +1,11 @@
 import matplotlib
 
 matplotlib.use("TkAgg")
-from stim_gen import augment_from_array, pick_hrtf_by_loc
+from legacy.stim_gen import augment_from_array, pick_hrtf_by_loc
 from CNN_preproc import transform_stims_to_cochleagrams
-from tfrecord_gen import create_tfrecord, check_record
+from legacy.tfrecord_gen import create_tfrecord, check_record
 import pickle
-from stim_util import zero_padding
+from legacy.stim_util import zero_padding
 
 # DATA GENERATION FOR LOCALIZATION ACCURACY PARADIGM
 # get machine run noise: 5 pink noise burst repetitions of 25 ms with 25 ms silence between. zero-padding to 1 second.

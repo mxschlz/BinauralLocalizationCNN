@@ -1,7 +1,7 @@
 import matplotlib
 
 matplotlib.use("TkAgg")
-from CNN_result_analysis import result_figure1, result_figure2, result_figure3
+from legacy.CNN_result_analysis import result_figure1, result_figure2, result_figure3
 import os
 
 res_path = 'Result'
