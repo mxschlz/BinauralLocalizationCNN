@@ -1,6 +1,7 @@
 import collections
 import json
 from pathlib import Path
+import logging
 
 import keras
 import numpy as np
@@ -8,9 +9,11 @@ import tensorflow as tf
 from google.protobuf.json_format import MessageToJson
 from keras import layers
 from scipy import signal as signallib
+import coloredlogs
 
-from blcnn.model_playground import logger
-
+logger = tf.get_logger()
+logger.setLevel(logging.DEBUG)
+coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def create_models(net_weights_path: Path) -> dict:
     """
