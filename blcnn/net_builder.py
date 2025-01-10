@@ -50,20 +50,13 @@ def create_model(ckpt_path: Path) -> keras.Sequential:
 
     config_array = np.load(ckpt_path / 'config_array.npy', allow_pickle=True)
 
-    class MyModel(tf.keras.Sequential):  # Experimental!
-        def predict_step(self, data):
-            print(data)
-            x, target, azim, elev = data
-            print(x, target, azim, elev)
-            return self(x, training=False), target
-
-    model = MyModel()
+    model = tf.keras.Sequential()
     # The input layer isn't really a layer, but a placeholder tensor w/ same shape as the input data
     # Network gets downsampled data (48kHz to 8kHz)
     model.add(keras.Input(shape=(39, 8000, 2), batch_size=16, name='train/image'))
 
     for layer in config_array[0][1:]:
-        logger.info(f'Adding layer: {layer}')
+        logger.debug(f'Adding layer: {layer}')
         if layer[0] == 'conv':
             # Input shape for Conv2D must be: (batch_size, imageside1, imageside2, channels)
             # config_array: ['conv', [2, 32, 32], [1, 1]] -> [Conv2D, [kernel_height, kernel_width, filters], [stride_height, stride_width]]
@@ -85,12 +78,12 @@ def create_model(ckpt_path: Path) -> keras.Sequential:
             pad_bottom = pad_along_height - pad_top
 
             if pad_along_height == 0:  # or padding == 'SAME': # -> SAME padding is not used for now
-                # logger.info('pad_along_height == 0')
+                # logger.debug('pad_along_height == 0')
                 # Note: data_format='channels_last' is correctly inferred when adding the Conv2D layer
                 model.add(layers.Conv2D(filters=filters, kernel_size=(kernel_height, kernel_width),
                                         strides=(stride_height, stride_width), padding='valid'))
             else:
-                # logger.info(f'pad_along_height != 0. pad_top, pad_bottom = {pad_top, pad_bottom}')
+                # logger.debug(f'pad_along_height != 0. pad_top, pad_bottom = {pad_top, pad_bottom}')
                 model.add(layers.ZeroPadding2D(padding=((pad_top, pad_bottom), (0, 0))))
                 model.add(layers.Conv2D(filters=filters, kernel_size=(kernel_height, kernel_width),
                                         strides=(stride_height, stride_width), padding='valid'))
@@ -126,11 +119,12 @@ def create_model(ckpt_path: Path) -> keras.Sequential:
                                    activation='softmax'))
             # Pick unit with highest probability
             # model.add(layers.Lambda(lambda x: tf.argmax(x, axis=1)))  # Experimental!
-    model.load_weights(ckpt_path / 'model.ckpt-100000')
-    model.compile(optimizer=keras.optimizers.legacy.Adam(),  # Optimizer
-        # Loss function to minimize
-        loss=keras.losses.SparseCategoricalCrossentropy(),  # List of metrics to monitor
-        metrics=[keras.metrics.SparseCategoricalAccuracy()], )
+
+    # TODO: Check if optimizers need to be ported to TF2
+    # model.compile(optimizer=keras.optimizers.legacy.Adam(),  # Optimizer
+    #               # Loss function to minimize
+    #               loss=keras.losses.SparseCategoricalCrossentropy(),  # List of metrics to monitor
+    #               metrics=[keras.metrics.SparseCategoricalAccuracy()], )
     return model
 
 
@@ -215,7 +209,7 @@ def single_example_parser(example):
     )
     print(f'Azim: {example["train/azim"]}, Elev: {example["train/elev"]}, Target: {example["target"]}')
 
-    return example['train/image'], example['target'], example['train/azim'], example['train/elev']
+    return example['train/image'], example['target']#, example['train/azim'], example['train/elev']
 
 
 def make_downsample_filt_tensor(current_rate=48000, new_rate=8000, window_size=4097, beta=10.06):
