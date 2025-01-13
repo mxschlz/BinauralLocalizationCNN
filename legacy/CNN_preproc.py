@@ -15,7 +15,7 @@ import scipy as sp
 import tensorflow as tf
 
 from pycochleagram import cochleagram as cgm
-from stim_util import apply_hanning_window, normalize_binaural_stim
+from legacy.stim_util import apply_hanning_window, normalize_binaural_stim
 
 # default settings
 NORM_SETTING = {'target_sr': 48000,
