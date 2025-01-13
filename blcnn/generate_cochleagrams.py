@@ -1,3 +1,4 @@
+import glob
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
-from blcnn.util import get_unique_folder_name
+from util import get_unique_folder_name
 from legacy.CNN_preproc import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     MCDERMOTT_SOURCE_POSITIONS, CartesianCoordinates, MCDERMOTT_ROOM_CONFIGS
@@ -47,7 +48,8 @@ def main():
 
     no_bkgd = True
 
-    summary = summarize_cochleagram_generation_info(path_to_brirs, path_to_stims, path_to_backgrounds, no_bkgd, timestamp)
+    summary = summarize_cochleagram_generation_info(path_to_brirs, path_to_stims, path_to_backgrounds, no_bkgd,
+                                                    timestamp)
     logger.info(summary)
 
     dest = get_unique_folder_name(f'data/cochleagrams/{path_to_brirs.name}/')
@@ -88,22 +90,24 @@ def main():
     # Assuming that for each augmented sound the positions and background noises are chosen independently
 
 
-def summarize_cochleagram_generation_info(path_to_brirs: Path, path_to_stims: Path, path_to_backgrounds: Path, no_bkgd: bool,
+def summarize_cochleagram_generation_info(path_to_brirs: Path, path_to_stims: Path, path_to_backgrounds: Path,
+                                          no_bkgd: bool,
                                           timestamp: str) -> str:
-    # Get the timestamp from the name of the summary file in the BRIR folder
-    [brir_summary_name] = path_to_brirs.glob('_summary_*.txt')
-    brir_gen_timestamp = brir_summary_name.name.split('_')[2].split('.')[0]
+    # Load BRIR summary
+    with open(glob.glob((path_to_brirs / '_summary_*.txt').as_posix())[0], 'r') as f:
+        brir_summary = f.read()
 
     summary = f'##### COCHLEAGRAM GENERATION INFO #####\n' \
               f'Timestamp: {timestamp}\n\n' \
-              f'Based on BRIRs from: {brir_gen_timestamp}\n' \
               f'No Background Textures: {no_bkgd}\n' \
               f'Path to BRIRs: {path_to_brirs}\n' \
               f'Path to Stimuli: {path_to_stims}\n' \
               f'Path to Backgrounds: {path_to_backgrounds}\n' \
               f'Number of BRIRs: {len(list(path_to_brirs.glob("*.npy")))}\n' \
               f'Number of Stimuli: {len(list(path_to_stims.glob("*.wav")))}\n' \
-              f'Number of Backgrounds: {len(list(path_to_backgrounds.glob("*.wav")))}\n'
+              f'Number of Backgrounds: {len(list(path_to_backgrounds.glob("*.wav")))}\n\n' \
+              f'Based on the following BRIR generation:\n' \
+              f'{brir_summary}'
     return summary
 
 
