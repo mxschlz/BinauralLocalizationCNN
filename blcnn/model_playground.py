@@ -31,8 +31,8 @@ def main() -> None:
 
 
 def test_models():
-    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     start_time = time.time()
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     path_to_models = Path('models/keras/')
     path_to_cochleagrams = Path('data/cochleagrams/slab_default_kemar')
 

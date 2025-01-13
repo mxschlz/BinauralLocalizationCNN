@@ -1,9 +1,11 @@
+import datetime
 import glob
 import json
 import logging
 import os
 import random
 import sys
+import time
 from pathlib import Path
 from typing import List, Dict, Generator, Tuple
 from time import strftime
@@ -31,6 +33,7 @@ coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - 
 
 
 def main():
+    start_time = time.time()
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
     # Resample background sounds to 48kHz
@@ -48,14 +51,9 @@ def main():
 
     no_bkgd = True
 
-    summary = summarize_cochleagram_generation_info(path_to_brirs, path_to_stims, path_to_backgrounds, no_bkgd,
-                                                    timestamp)
-    logger.info(summary)
 
     dest = get_unique_folder_name(f'data/cochleagrams/{path_to_brirs.name}/')
     Path(dest).mkdir(parents=True, exist_ok=False)
-    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
-        f.write(summary)
 
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
     writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
@@ -87,18 +85,29 @@ def main():
     # inner_bar.close()
     writer.close()
 
+    elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
+
+    summary = summarize_cochleagram_generation_info(path_to_brirs, path_to_stims, path_to_backgrounds, no_bkgd,
+                                                    timestamp, elapsed_time)
+    logger.info(summary)
+    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+        f.write(summary)
+
+
     # Assuming that for each augmented sound the positions and background noises are chosen independently
 
 
 def summarize_cochleagram_generation_info(path_to_brirs: Path, path_to_stims: Path, path_to_backgrounds: Path,
                                           no_bkgd: bool,
-                                          timestamp: str) -> str:
+                                          timestamp: str,
+                                          elapsed_time: str) -> str:
     # Load BRIR summary
     with open(glob.glob((path_to_brirs / '_summary_*.txt').as_posix())[0], 'r') as f:
         brir_summary = f.read()
 
     summary = f'##### COCHLEAGRAM GENERATION INFO #####\n' \
               f'Timestamp: {timestamp}\n\n' \
+              f'Total elapsed time: {elapsed_time}\n' \
               f'No Background Textures: {no_bkgd}\n' \
               f'Path to BRIRs: {path_to_brirs}\n' \
               f'Path to Stimuli: {path_to_stims}\n' \

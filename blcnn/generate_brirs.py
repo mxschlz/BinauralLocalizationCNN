@@ -1,3 +1,4 @@
+import datetime
 import itertools
 import logging
 import pickle
@@ -87,6 +88,7 @@ Francl used this KEMAR HRTF: https://sound.media.mit.edu/resources/KEMAR.html
 (hrtf_nh2.sofa also seems to work)
 """
 
+
 # Maybe setting the default samplerate makes the resampling downstairs unnecessary?
 # slab.Signal.set_default_samplerate(48000)
 # CUSTOM_HRTF = slab.HRTF.kemar()
@@ -113,21 +115,14 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
         Dictionary with keys (room_id, listener_position, source_position) and values Filter objects
     """
 
+    start_time = time.time()
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
-    summary = summarize_brir_generation_info(room_configs, timestamp, persist_brirs_individually)
-    logger.info(summary)
-
     dest = get_unique_folder_name(f'data/brirs/{CUSTOM_HRTF_FILENAME.split(".")[0]}/')
-
     Path(dest).mkdir(parents=True, exist_ok=False)
-    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
-        f.write(summary)
 
     nr_brirs = sum(1 for _ in generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS))
     brir_params = generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS)
-
-    # sys.exit()
 
     if persist_brirs_individually:  # Save BRIRs as individual files
         with Pool() as pool:
@@ -140,8 +135,16 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
                 brir_dict[result[0]] = result[1]
         pickle.dump(brir_dict, open(dest / 'brir_dict.pkl', 'wb'))
 
+    elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
 
-def summarize_brir_generation_info(room_configs: Dict[int, RoomConfig], timestamp: str, persist_brirs_individually: bool) -> str:
+    summary = summarize_brir_generation_info(room_configs, timestamp, elapsed_time, persist_brirs_individually)
+    logger.info(summary)
+    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+        f.write(summary)
+
+
+def summarize_brir_generation_info(room_configs: Dict[int, RoomConfig], timestamp: str, elapsed_time: str,
+                                   persist_brirs_individually: bool) -> str:
     """
     Given a list of room configurations, prints the number of listener positions and the number of BRIRs to generate in total.
     """
@@ -150,17 +153,17 @@ def summarize_brir_generation_info(room_configs: Dict[int, RoomConfig], timestam
         len(calculate_listener_positions(room_config.room_size)) for room_id, room_config in room_configs.items())
     num_source_positions = len(list(MCDERMOTT_SOURCE_POSITIONS))
 
-
     summary = f'##### BRIR GENERATION INFO #####\n' \
-               f'Timestamp: {timestamp}\n' \
-               f'BRIRs as individual files: {persist_brirs_individually}\n' \
-               f'HRTF: {CUSTOM_HRTF_FILENAME}\n' \
-               f'HRTF samplerate: {CUSTOM_HRTF.samplerate}\n\n' \
-               f'Room Configs: {room_configs}\n' \
-               f'Number of Rooms: {len(room_configs.items())}\n' \
-               f'Number of Listener Positions: {num_listener_positions}\n' \
-               f'Number of Source positions per Listener position: {num_source_positions}\n' \
-               f'Generating {nr_brirs} BRIRs\n'
+              f'Timestamp: {timestamp}\n' \
+              f'Total elapsed time: {elapsed_time}\n' \
+              f'BRIRs as individual files: {persist_brirs_individually}\n' \
+              f'HRTF: {CUSTOM_HRTF_FILENAME}\n' \
+              f'HRTF samplerate: {CUSTOM_HRTF.samplerate}\n\n' \
+              f'Room Configs: {room_configs}\n' \
+              f'Number of Rooms: {len(room_configs.items())}\n' \
+              f'Number of Listener Positions: {num_listener_positions}\n' \
+              f'Number of Source positions per Listener position: {num_source_positions}\n' \
+              f'Generating {nr_brirs} BRIRs\n'
     return summary
 
 
