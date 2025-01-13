@@ -2,9 +2,9 @@
 
 # Ignore content of data folders but keep structure
 data/hrtfs/**
-data/interim/**
+data/brirs/**
 data/output/**
-data/processed/**
+data/cochleagrams/**
 data/raw/**
 data/_misc/
 

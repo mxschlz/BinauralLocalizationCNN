@@ -2,10 +2,12 @@ import json
 import logging
 import os
 import random
+import sys
 from pathlib import Path
 from typing import List, Dict, Generator, Tuple
 from time import strftime
 
+import coloredlogs
 import numpy as np
 import scipy as sp
 import slab
@@ -13,57 +15,48 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
+from blcnn.util import get_unique_folder_name
 from legacy.CNN_preproc import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     MCDERMOTT_SOURCE_POSITIONS, CartesianCoordinates, MCDERMOTT_ROOM_CONFIGS
 from legacy.stim_util import zero_padding, normalize_binaural_stim
 
-
 # Needed bc there's a bug in slab.Signal's add method that doesn't preserve the samplerate
 slab.Signal.set_default_samplerate(48000)
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
     # Resample background sounds to 48kHz
     # for file in Path('resources/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz').glob('*.wav'):
     #     slab.Sound(file).resample(48000).write(file)
     # -> Assuming now that all textures are 48kHz
 
-    # generate_and_persist_BRIRs(MCDERMOTT_ROOM_CONFIGS)
-    # sys.exit(0)
+    path_to_stims = Path('data/raw/uso_500ms_raw')
+    stim_paths = list(path_to_stims.glob('*.wav'))
 
-    # brir_dict = pickle.load(open('brir_dict_2024-09-11_13-51-58.pkl', 'rb'))
-    stim_paths = list(Path('data/raw/uso_500ms_raw').glob('*.wav'))
-    # path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
-    path_to_brirs = Path('data/brirs/hrtf_b_nh2')
+    path_to_backgrounds = Path('data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz')
+    bkgd_paths = list(path_to_backgrounds.glob('*.wav'))
 
+    path_to_brirs = Path('data/brirs/slab_default_kemar')
 
-    print(stim_paths)
-    # One process
-    # i = 0
-    # for sample, training_coordinates in tqdm(generate_training_samples_from_stim_path(stim_paths[10], path_to_brirs=path_to_brirs)):
-    #     if i % 20 == 0:
-    #         sample.play(blocking=True)
-    #     i += 1
+    no_bkgd = True
 
+    summary = summarize_cochleagram_generation_info(path_to_brirs, path_to_stims, path_to_backgrounds, no_bkgd, timestamp)
+    logger.info(summary)
 
-    timestamp = strftime("%Y-%m-%d_%H-%M-%S")
-    bar = tqdm(desc='Generated training samples', position=1, unit='samples')
-    # Intermediate dir to host different tfrecords w/ different HRTFs
-    # -> atm only one HRTF set is loaded
-    Path('data', f'cochleagrams_{timestamp}').mkdir(parents=True, exist_ok=True)
-    # Save metadata
-    bkgd_paths = list(Path('data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz').glob('*.wav'))
-    metadata = {"timestamp": timestamp,
-                "path_to_brirs": str(path_to_brirs),
-                "stim_paths": str(stim_paths),
-                "background paths": str(bkgd_paths)}
-    with open(os.path.join('data', f'cochleagrams_{timestamp}', 'metadata.json'), 'w') as f:
-        json.dump(metadata, f)
+    dest = get_unique_folder_name(f'data/cochleagrams/{path_to_brirs.name}/')
+    Path(dest).mkdir(parents=True, exist_ok=False)
+    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+        f.write(summary)
+
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
-    writer = tf.io.TFRecordWriter(os.path.join('data', f'cochleagrams_{timestamp}', f'cochs_{"hrtf_b_nh2"}.tfrecord', ), options=options)
+    writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
 
     # # Parallel
     # # nr_workers = multiprocessing.cpu_count()
@@ -79,7 +72,7 @@ def main():
     # #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
     # #         training_samples.extend(samples_from_one_sound)
     # #         bar.update(len(samples_from_one_sound))
-    #
+
     # global inner_bar
     # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
     # Sequential
@@ -92,13 +85,32 @@ def main():
     # inner_bar.close()
     writer.close()
 
-
     # Assuming that for each augmented sound the positions and background noises are chosen independently
+
+
+def summarize_cochleagram_generation_info(path_to_brirs: Path, path_to_stims: Path, path_to_backgrounds: Path, no_bkgd: bool,
+                                          timestamp: str) -> str:
+    # Get the timestamp from the name of the summary file in the BRIR folder
+    [brir_summary_name] = path_to_brirs.glob('_summary_*.txt')
+    brir_gen_timestamp = brir_summary_name.name.split('_')[2].split('.')[0]
+
+    summary = f'##### COCHLEAGRAM GENERATION INFO #####\n' \
+              f'Timestamp: {timestamp}\n\n' \
+              f'Based on BRIRs from: {brir_gen_timestamp}\n' \
+              f'No Background Textures: {no_bkgd}\n' \
+              f'Path to BRIRs: {path_to_brirs}\n' \
+              f'Path to Stimuli: {path_to_stims}\n' \
+              f'Path to Backgrounds: {path_to_backgrounds}\n' \
+              f'Number of BRIRs: {len(list(path_to_brirs.glob("*.npy")))}\n' \
+              f'Number of Stimuli: {len(list(path_to_stims.glob("*.wav")))}\n' \
+              f'Number of Backgrounds: {len(list(path_to_backgrounds.glob("*.wav")))}\n'
+    return summary
 
 
 def generate_training_samples_from_stim_path(stim_path: Path,
                                              brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
-                                             path_to_brirs: Path = Path('data', 'brirs_2024-09-13_14-13-42')
+                                             path_to_brirs: Path = Path('data', 'brirs_2024-09-13_14-13-42'),
+                                             no_bkgd=True
                                              ) -> List[Tuple[np.ndarray, TrainingCoordinates]]:
     #     -> Generator[
     # Tuple[slab.Sound, TrainingCoordinates], None, None]:
@@ -126,17 +138,17 @@ def generate_training_samples_from_stim_path(stim_path: Path,
     training_samples = []
     # worker_nr = int(multiprocessing.current_process().name.split('-')[-1])
     # for spatialized_sound, training_coordinates in tqdm(stim_generator, desc= f'Process {worker_nr}',position=worker_nr, leave=False):
-    for spatialized_sound, training_coordinates in tqdm(stim_generator, desc='Generated training samples', position=1, unit='samples', leave=False):
+    for spatialized_sound, training_coordinates in tqdm(stim_generator, desc='Generated training samples', position=1,
+                                                        unit='samples', leave=False):
         normalized_sound = spatialized_sound * (0.1 / np.max(np.abs(spatialized_sound.data)))
-        # background = create_background(training_coordinates.room_id, training_coordinates.listener_position,
-        #                                brir_dict=brir_dict, path_to_brirs=path_to_brirs)
-        # snr_factor = (10 ** (-random.uniform(5, 30) / 20))  # TODO: Use slab
-        # combined_sound = normalized_sound + background * snr_factor
-        # combined_sound.play()
-        # yield combined_sound, training_coordinates
-        # training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
-        # normalized_sound.play()
-        training_samples.append((transform_stim_to_cochleagram(normalized_sound), training_coordinates))
+        if no_bkgd:
+            training_samples.append((transform_stim_to_cochleagram(normalized_sound), training_coordinates))
+        else:
+            background = create_background(training_coordinates.room_id, training_coordinates.listener_position,
+                                           brir_dict=brir_dict, path_to_brirs=path_to_brirs)
+            snr_factor = (10 ** (-random.uniform(5, 30) / 20))
+            combined_sound = normalized_sound + background * snr_factor
+            training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
         # inner_bar.update(1)
     return training_samples
 
@@ -155,11 +167,11 @@ def write_tfrecord(cochleagram, training_coords, writer):
     # TODO: Doesn't shuffle data
     data = {'train/image': tf.train.Feature(
         bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
-            'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
-            'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
-            'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
-            'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev]))
-            }
+        'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
+        'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
+        'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
+        'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev]))
+    }
 
     # write the single record into tfrecord file
     example = tf.train.Example(features=tf.train.Features(feature=data))
@@ -258,7 +270,8 @@ def create_background(room_id: int,
         background_textures.append(spatialized_texture)
     # Need to supply starting sound for sum on which to add the textures
     summed_textures = sum(background_textures, start=slab.Sound(np.zeros_like(background_textures[0].data)))
-    normalized_background = summed_textures * (0.99 / np.max(np.abs(summed_textures.data)))  # no attenuation here; 0.99 to avoid technical errors when persisting
+    normalized_background = summed_textures * (0.99 / np.max(
+        np.abs(summed_textures.data)))  # no attenuation here; 0.99 to avoid technical errors when persisting
     return normalized_background
 
 
