@@ -2,16 +2,22 @@ import itertools
 import logging
 import pickle
 import sys
+import time
 from math import floor
 from multiprocessing import Pool
 from pathlib import Path
 from time import strftime
 from typing import NamedTuple, List, Dict, Generator, Tuple
 
+import coloredlogs
 import slab
 from tqdm import tqdm
 
+from util import get_unique_folder_name
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 """
 Listener height and source distance are always 1.4m, so they are not included in the NamedTuples.
@@ -47,6 +53,7 @@ class TrainingCoordinates(NamedTuple):
     def __str__(self):
         return f'{self.room_id}r_{self.listener_position.x}x_{self.listener_position.y}y_{self.source_position.elev}e_{self.source_position.azim}a'
 
+
 #
 # MCDERMOTT_SOURCE_POSITIONS = [SphericalCoordinates(azimuth, elevation)
 #                               for azimuth, elevation in itertools.product(range(-180, 180, 5), range(0, 61, 10))]
@@ -60,10 +67,10 @@ MCDERMOTT_ROOM_CONFIGS = {1: RoomConfig(RoomSize(9, 9, 10), [0.1, ]),  # TODO: A
                           4: RoomConfig(RoomSize(5, 8, 5), [0.1, ]),
                           5: RoomConfig(RoomSize(4, 4, 4), [0.1, ])}  # width, length from 3m to 4m bc src out of bounds
 
-CUSTOM_HRTF_FILENAME = 'hrtf_b_nh2.sofa'
-CUSTOM_HRTF = slab.HRTF(Path('resources', '../data/hrtfs', CUSTOM_HRTF_FILENAME))
-# CUSTOM_HRTF_FILENAME = 'slab_default_kemar'
-# CUSTOM_HRTF = slab.HRTF.kemar()
+# CUSTOM_HRTF_FILENAME = 'hrtf_b_nh2.sofa'
+# CUSTOM_HRTF = slab.HRTF(Path('../data/hrtfs', CUSTOM_HRTF_FILENAME))
+CUSTOM_HRTF_FILENAME = 'slab_default_kemar'
+CUSTOM_HRTF = slab.HRTF.kemar()
 
 """
 Francl used this KEMAR HRTF: https://sound.media.mit.edu/resources/KEMAR.html
@@ -83,7 +90,6 @@ Francl used this KEMAR HRTF: https://sound.media.mit.edu/resources/KEMAR.html
 # Maybe setting the default samplerate makes the resampling downstairs unnecessary?
 # slab.Signal.set_default_samplerate(48000)
 # CUSTOM_HRTF = slab.HRTF.kemar()
-print(f'HRTF samplerate: {CUSTOM_HRTF.samplerate}')
 
 
 def main() -> None:
@@ -107,36 +113,35 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
         Dictionary with keys (room_id, listener_position, source_position) and values Filter objects
     """
 
-    log_brir_generation_info(room_configs)
+    timestamp = strftime("%Y-%m-%d_%H-%M-%S")
+
+    summary = summarize_brir_generation_info(room_configs, timestamp, persist_brirs_individually)
+    logger.info(summary)
+
+    dest = get_unique_folder_name(f'data/brirs/{CUSTOM_HRTF_FILENAME.split(".")[0]}/')
+
+    Path(dest).mkdir(parents=True, exist_ok=False)
+    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+        f.write(summary)
 
     nr_brirs = sum(1 for _ in generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS))
     brir_params = generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS)
-    timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
-    if persist_brirs_individually:
-        Path(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/').mkdir(parents=True, exist_ok=True)
+    # sys.exit()
+
+    if persist_brirs_individually:  # Save BRIRs as individual files
         with Pool() as pool:
             for training_coords, brir in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
-                # Persist the BRIRs individually
-                brir.save(Path('../data', f'brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}', f'brir_{training_coords}.wav'))
-
-                # Resample 48 -> 35min, 502kB
-                # no resample -> 20min, 460kB
-                # Pickle.dump resample 48 -> 35min, 502kB
-                # pickle.dump -> 16min, 460kB
-                # difference of 3GB. 33GB vs 36GB, ok for 15 minutes speed improvement later
-
-    else:
-        Path(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/').mkdir(parents=True, exist_ok=True)
+                brir.save(Path(dest / f'brir_{training_coords}.wav'))
+    else:  # Save BRIRs as dictionary in one file
         brir_dict = dict()
         with Pool() as pool:
             for result in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
-                # Add the BRIRs to the dictionary and persist later
                 brir_dict[result[0]] = result[1]
-        pickle.dump(brir_dict, open(f'data/brirs_{CUSTOM_HRTF_FILENAME.split(".")[0]}_{timestamp}/brir_dict_{timestamp}.pkl', 'wb'))
+        pickle.dump(brir_dict, open(dest / 'brir_dict.pkl', 'wb'))
 
 
-def log_brir_generation_info(room_configs: Dict[int, RoomConfig]):
+def summarize_brir_generation_info(room_configs: Dict[int, RoomConfig], timestamp: str, persist_brirs_individually: bool) -> str:
     """
     Given a list of room configurations, prints the number of listener positions and the number of BRIRs to generate in total.
     """
@@ -145,11 +150,18 @@ def log_brir_generation_info(room_configs: Dict[int, RoomConfig]):
         len(calculate_listener_positions(room_config.room_size)) for room_id, room_config in room_configs.items())
     num_source_positions = len(list(MCDERMOTT_SOURCE_POSITIONS))
 
-    logger.info('##### DATA GENERATION INFO #####')
-    logger.info(f'Number of Rooms: {len(room_configs.items())}')
-    logger.info(f'Number of Listener Positions: {num_listener_positions}')
-    logger.info(f'Number of Source positions per Listener position: {num_source_positions}')
-    logger.info(f'Generating {nr_brirs} BRIRs')
+
+    summary = f'##### BRIR GENERATION INFO #####\n' \
+               f'Timestamp: {timestamp}\n' \
+               f'BRIRs as individual files: {persist_brirs_individually}\n' \
+               f'HRTF: {CUSTOM_HRTF_FILENAME}\n' \
+               f'HRTF samplerate: {CUSTOM_HRTF.samplerate}\n\n' \
+               f'Room Configs: {room_configs}\n' \
+               f'Number of Rooms: {len(room_configs.items())}\n' \
+               f'Number of Listener Positions: {num_listener_positions}\n' \
+               f'Number of Source positions per Listener position: {num_source_positions}\n' \
+               f'Generating {nr_brirs} BRIRs\n'
+    return summary
 
 
 def generate_BRIR_params(room_configs: Dict[int, RoomConfig], source_positions: List[SphericalCoordinates]) -> \

@@ -13,7 +13,7 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
-from CNN_preproc import cochleagram_wrapper
+from legacy.CNN_preproc import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     MCDERMOTT_SOURCE_POSITIONS, CartesianCoordinates, MCDERMOTT_ROOM_CONFIGS
 from legacy.stim_util import zero_padding, normalize_binaural_stim
@@ -37,7 +37,7 @@ def main():
     # brir_dict = pickle.load(open('brir_dict_2024-09-11_13-51-58.pkl', 'rb'))
     stim_paths = list(Path('data/raw/uso_500ms_raw').glob('*.wav'))
     # path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
-    path_to_brirs = Path('data/interim/brirs_hrtf_b_nh2_2024-12-18_02-17-23')
+    path_to_brirs = Path('data/brirs/hrtf_b_nh2')
 
 
     print(stim_paths)
