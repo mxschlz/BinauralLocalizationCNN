@@ -9,12 +9,14 @@ from multiprocessing import Pool
 from pathlib import Path
 from time import strftime
 from typing import NamedTuple, List, Dict, Generator, Tuple
+import pprint
 
 import coloredlogs
 import slab
 from tqdm import tqdm
 
-from util import get_unique_folder_name
+from persistent_cache import persistent_cache
+from util import get_unique_folder_name, load_config, BRIRConfig, RoomConfig, SourcePositionsConfig
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -35,17 +37,6 @@ class SphericalCoordinates(NamedTuple):
     elev: float
 
 
-class RoomSize(NamedTuple):
-    width: float
-    length: float
-    height: float
-
-
-class RoomConfig(NamedTuple):
-    room_size: RoomSize
-    absorption: List[float]
-
-
 class TrainingCoordinates(NamedTuple):
     room_id: int
     listener_position: CartesianCoordinates
@@ -54,24 +45,6 @@ class TrainingCoordinates(NamedTuple):
     def __str__(self):
         return f'{self.room_id}r_{self.listener_position.x}x_{self.listener_position.y}y_{self.source_position.elev}e_{self.source_position.azim}a'
 
-
-#
-# MCDERMOTT_SOURCE_POSITIONS = [SphericalCoordinates(azimuth, elevation)
-#                               for azimuth, elevation in itertools.product(range(-180, 180, 5), range(0, 61, 10))]
-
-# vertical_polar coordinates from 0 to 355 counterclockwise
-MCDERMOTT_SOURCE_POSITIONS = [SphericalCoordinates(azimuth, elevation)
-                              for azimuth, elevation in itertools.product(range(0, 360, 5), range(0, 61, 10))]
-MCDERMOTT_ROOM_CONFIGS = {1: RoomConfig(RoomSize(9, 9, 10), [0.1, ]),  # TODO: Add real absorption coefficients
-                          2: RoomConfig(RoomSize(4, 5, 3), [0.1, ]),  # height from 2m to 3m bc src out of bounds
-                          3: RoomConfig(RoomSize(10, 10, 4), [0.1, ]),
-                          4: RoomConfig(RoomSize(5, 8, 5), [0.1, ]),
-                          5: RoomConfig(RoomSize(4, 4, 4), [0.1, ])}  # width, length from 3m to 4m bc src out of bounds
-
-# CUSTOM_HRTF_FILENAME = 'hrtf_b_nh2.sofa'
-# CUSTOM_HRTF = slab.HRTF(Path('../data/hrtfs', CUSTOM_HRTF_FILENAME))
-CUSTOM_HRTF_FILENAME = 'slab_default_kemar'
-CUSTOM_HRTF = slab.HRTF.kemar()
 
 """
 Francl used this KEMAR HRTF: https://sound.media.mit.edu/resources/KEMAR.html
@@ -95,12 +68,29 @@ Francl used this KEMAR HRTF: https://sound.media.mit.edu/resources/KEMAR.html
 
 
 def main() -> None:
-    generate_and_persist_BRIRs(MCDERMOTT_ROOM_CONFIGS)
+    run_with_multiple_hrtfs()
+    # TODO: Figure out a way to run this with one HRTF for SLURM parallelization
 
 
-def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brirs_individually: bool = True) -> None:
+def run_with_multiple_hrtfs():
+    brir_config = load_config('blcnn/config.yml').generate_brirs
+    logger.info(f'Loaded config: {pprint.pformat(brir_config)}')
+
+    # Check if the HRTF files specified in the yaml exist
+    for hrtf_path in brir_config.hrtfs:
+        if hrtf_path == 'slab_kemar':
+            continue
+        elif not Path(hrtf_path).exists():
+            logger.error(f'HRTF file {hrtf_path} specified in config.yml does not exist. Exiting...')
+            sys.exit(1)
+
+    for hrtf_path in brir_config.hrtfs:
+        generate_and_persist_BRIRs_for_single_HRTF(brir_config, hrtf_path)
+
+
+def generate_and_persist_BRIRs_for_single_HRTF(brir_config: BRIRConfig, hrtf_path: str) -> None:
     """
-    Given a list of room configurations, generates the corresponding BRIRs and stores them in a dictionary.
+    Given the configuration and the path to an HRTF file, generates the corresponding BRIRs and stores them in a dictionary.
     The BRIRs can be accessed using (room_id, listener_position, source_position).
     Part of reimplementation of McDermott's data generation pipeline.
 
@@ -109,8 +99,8 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
     Note: Dict keeps the correct filters.
 
     Args:
-        Dict[int, RoomConfig]: Dict of {room_id: RoomConfig} containing the room size and absorption coefficients
-
+        brir_config: BRIRConfig object containing the room configurations and source positions
+        hrtf_path: Path (str) to the HRTF file to use or 'slab_kemar' for the default KEMAR HRTF
     Returns:
         Dictionary with keys (room_id, listener_position, source_position) and values Filter objects
     """
@@ -118,56 +108,79 @@ def generate_and_persist_BRIRs(room_configs: Dict[int, RoomConfig], persist_brir
     start_time = time.time()
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
-    dest = get_unique_folder_name(f'data/brirs/{CUSTOM_HRTF_FILENAME.split(".")[0]}/')
+    dest = get_unique_folder_name(f'data/brirs/{Path(hrtf_path).stem}/')
     Path(dest).mkdir(parents=True, exist_ok=False)
 
-    nr_brirs = sum(1 for _ in generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS))
-    brir_params = generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS)
+    source_positions = generate_source_positions(brir_config.source_positions)
 
-    if persist_brirs_individually:  # Save BRIRs as individual files
-        with Pool() as pool:
-            for training_coords, brir in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
-                brir.save(Path(dest / f'brir_{training_coords}.wav'))
-    else:  # Save BRIRs as dictionary in one file
-        brir_dict = dict()
-        with Pool() as pool:
-            for result in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
-                brir_dict[result[0]] = result[1]
-        pickle.dump(brir_dict, open(dest / 'brir_dict.pkl', 'wb'))
+    nr_brirs = get_nr_brirs(brir_config.room_configs, source_positions)
+    brir_params = generate_BRIR_params(brir_config.room_configs, source_positions)
 
-    elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
+    try:
+        if brir_config.persist_brirs_individually:  # Save BRIRs as individual files
+            with Pool(initializer=initializer, initargs=(brir_config.room_configs, hrtf_path)) as pool:
+                for training_coords, brir in tqdm(pool.imap_unordered(run_brir_sim, brir_params),
+                                                  total=nr_brirs):
+                    brir.save(Path(dest / f'brir_{training_coords}.wav'))
+        else:  # Save BRIRs as dictionary in one file
+            brir_dict = dict()
+            with Pool() as pool:
+                for result in tqdm(pool.imap_unordered(run_brir_sim, brir_params), total=nr_brirs):
+                    brir_dict[result[0]] = result[1]
+            pickle.dump(brir_dict, open(dest / 'brir_dict.pkl', 'wb'))
+    except Exception as e:
+        logger.error(f'An error occurred during BRIR generation: {e}')
+    finally:
+        elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
+        summary = summarize_brir_generation_info(brir_config, hrtf_path, timestamp, elapsed_time, dest)
+        logger.info(summary)
+        with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+            f.write(summary)
 
-    summary = summarize_brir_generation_info(room_configs, timestamp, elapsed_time, persist_brirs_individually)
-    logger.info(summary)
-    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
-        f.write(summary)
+
+def generate_source_positions(source_positions: SourcePositionsConfig) -> List[SphericalCoordinates]:
+    elevation_range = range(source_positions.elevation.start,
+                            source_positions.elevation.stop + 1,
+                            source_positions.elevation.step)
+    azimuth_range = range(source_positions.azimuth.start,
+                          source_positions.azimuth.stop + 1,
+                          source_positions.azimuth.step)
+    return [SphericalCoordinates(azimuth, elevation) for azimuth, elevation in
+            itertools.product(azimuth_range, elevation_range)]
 
 
-def summarize_brir_generation_info(room_configs: Dict[int, RoomConfig], timestamp: str, elapsed_time: str,
-                                   persist_brirs_individually: bool) -> str:
+@persistent_cache
+def get_nr_brirs(room_configs: List[RoomConfig], source_positions: List[SphericalCoordinates]) -> int:
+    return sum(1 for _ in generate_BRIR_params(room_configs, source_positions))
+
+
+def summarize_brir_generation_info(brir_config: BRIRConfig, hrtf_path: str,
+                                   timestamp: str, elapsed_time: str, dest: Path) -> str:
     """
-    Given a list of room configurations, prints the number of listener positions and the number of BRIRs to generate in total.
+    Summarizes the BRIR generation info in a human-readable format.
     """
-    nr_brirs = sum(1 for _ in generate_BRIR_params(room_configs, MCDERMOTT_SOURCE_POSITIONS))
+
+    # Re-generate stuff here so this function stays independent of the rest of the code
+    source_positions = generate_source_positions(brir_config.source_positions)
+    nr_brirs = get_nr_brirs(brir_config.room_configs, source_positions)
     num_listener_positions = sum(
-        len(calculate_listener_positions(room_config.room_size)) for room_id, room_config in room_configs.items())
-    num_source_positions = len(list(MCDERMOTT_SOURCE_POSITIONS))
+        len(calculate_listener_positions(room_config.width, room_config.length)) for room_config in
+        brir_config.room_configs)
+    num_source_positions = len(list(source_positions))
 
     summary = f'##### BRIR GENERATION INFO #####\n' \
+              f'HRTF: {hrtf_path}\n' \
               f'Timestamp: {timestamp}\n' \
               f'Total elapsed time: {elapsed_time}\n' \
-              f'BRIRs as individual files: {persist_brirs_individually}\n' \
-              f'HRTF: {CUSTOM_HRTF_FILENAME}\n' \
-              f'HRTF samplerate: {CUSTOM_HRTF.samplerate}\n\n' \
-              f'Room Configs: {room_configs}\n' \
-              f'Number of Rooms: {len(room_configs.items())}\n' \
+              f'Results saved to: {dest}\n' \
               f'Number of Listener Positions: {num_listener_positions}\n' \
               f'Number of Source positions per Listener position: {num_source_positions}\n' \
-              f'Generating {nr_brirs} BRIRs\n'
+              f'{len(list(dest.glob("brir_*")))}/{nr_brirs} BRIRs generated\n' \
+              f'Config:\n{pprint.pformat(brir_config)}\n'
     return summary
 
 
-def generate_BRIR_params(room_configs: Dict[int, RoomConfig], source_positions: List[SphericalCoordinates]) -> \
+def generate_BRIR_params(room_configs: List[RoomConfig], source_positions: List[SphericalCoordinates]) -> \
         Generator[TrainingCoordinates, None, None]:
     """
     Generates the parameters for the BRIRs to be computed.
@@ -177,13 +190,13 @@ def generate_BRIR_params(room_configs: Dict[int, RoomConfig], source_positions: 
         Generator of TrainingCoordinates objects
     """
 
-    for room_id, room_config in room_configs.items():
-        listener_positions = calculate_listener_positions(room_config.room_size)
+    for room_config in room_configs:
+        listener_positions = calculate_listener_positions(room_config.width, room_config.length)
         for listener_position, source_position in itertools.product(listener_positions, source_positions):
-            yield TrainingCoordinates(room_id, listener_position, source_position)
+            yield TrainingCoordinates(room_config.id, listener_position, source_position)
 
 
-def calculate_listener_positions(room_size: RoomSize) -> List[CartesianCoordinates]:
+def calculate_listener_positions(room_width: float, room_length: float) -> List[CartesianCoordinates]:
     """
     Given the size of a room, generates a list of listener positions with the following constraints:
     1. The listener is placed 1.4m from the walls
@@ -191,17 +204,18 @@ def calculate_listener_positions(room_size: RoomSize) -> List[CartesianCoordinat
     3. The grid is centered in the room
 
     Args:
-        room_size: NamedTuple with the size of the room RoomSize(width, length, height)
+        room_width: Width of the room in meters
+        room_length: Length of the room in meters
 
     Returns:
         List of CartesianCoordinates containing the listener positions.
     """
     # 1.4m from each wall, 1m between positions, add 1 for the last position
-    nr_positions_x = floor(room_size.width - 2.8) + 1
-    nr_positions_y = floor(room_size.length - 2.8) + 1
+    nr_positions_x = floor(room_width - 2.8) + 1
+    nr_positions_y = floor(room_length - 2.8) + 1
 
-    positions_x_start = (room_size.width - (nr_positions_x - 1)) / 2
-    positions_y_start = (room_size.length - (nr_positions_y - 1)) / 2
+    positions_x_start = (room_width - (nr_positions_x - 1)) / 2
+    positions_y_start = (room_length - (nr_positions_y - 1)) / 2
 
     positions = []
     for x in range(nr_positions_x):
@@ -210,23 +224,37 @@ def calculate_listener_positions(room_size: RoomSize) -> List[CartesianCoordinat
     return positions
 
 
-def run_brir_sim(brir_params: TrainingCoordinates[int, CartesianCoordinates, SphericalCoordinates]) -> Tuple[
-    TrainingCoordinates, slab.Filter]:
+def initializer(room_configs: List[RoomConfig], hrtf_path: str) -> None:
+    """
+    Initializer function for the multiprocessing Pool to pass the room parameters and HRTF to the worker functions.
+    """
+    global _room_params
+    global _hrtf
+    _room_params = {room.id: [room.width, room.length, room.height] for room in room_configs}
+    if hrtf_path == 'slab_kemar':
+        _hrtf = slab.HRTF.kemar()
+    else:
+        _hrtf = slab.HRTF(hrtf_path)
+
+
+def run_brir_sim(brir_params: TrainingCoordinates[int, CartesianCoordinates, SphericalCoordinates]) \
+        -> Tuple[TrainingCoordinates, slab.Filter]:
     """
     Wrapper function to calculate the BRIRs for a given set of room configurations and BRIR parameters.
     TODO: Add absorption and wall_filter
-    TODO: Somehow pass room_config to function instead of global variable
 
     Args:
         brir_params: TrainingCoordinates object containing the room ID, listener position and source position
     Returns:
         Tuple of TrainingCoordinates and slab.Filter
     """
+    global _room_params
+    global _hrtf
     room_id, listener_position, source_position = brir_params
-    room = slab.Room(size=MCDERMOTT_ROOM_CONFIGS[room_id].room_size, listener=[*listener_position, 1.4],
+    room = slab.Room(size=_room_params[room_id], listener=[*listener_position, 1.4],
                      source=[*source_position, 1.4])
     # Trim prob not necessary; is already below length of samples (2s); trying to trim to 2s results in crash
-    return TrainingCoordinates(room_id, listener_position, source_position), room.hrir(hrtf=CUSTOM_HRTF).resample(48000)
+    return TrainingCoordinates(room_id, listener_position, source_position), room.hrir(hrtf=_hrtf).resample(48000)
 
 
 if __name__ == "__main__":
