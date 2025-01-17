@@ -19,6 +19,7 @@ dependencies:
     - tqdm
     - pytest
     - h5netcdf
+    - pyyaml
     - pip:
         - visualkeras
         - slab

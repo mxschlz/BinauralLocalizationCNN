@@ -26,6 +26,7 @@ dependencies:
     - tqdm
     - pytest
     - h5netcdf
+    - pyyaml
     ## PyPI packages
     - pip:
         - tensorflow-metal==1.1.0
