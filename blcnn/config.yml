@@ -1,0 +1,47 @@
+# Paths are relative to the root directory of the repository.
+
+# The variable parameter throughout the experiments are the different HRTFs, which can be
+# configured individually for greater flexibility.
+# The scripts check in advance if the input files are available for the specified HRTFs and
+# will raise an error if they are not found.
+
+# TODO: Currently, the source positions and room_configs for BRIR generation determine the
+#       listener and source positions of the cochleagrams generated. This is not ideal as
+#       we might want to generate cochleagrams only for a subset of the parameters from the
+#       BRIR generation. Currently, we need to re-run the BRIR generation with the desired
+#       parameters.
+
+# Configuration for generate_brirs.py
+generate_brirs:
+  hrtfs:
+    - slab_kemar  # Special case that uses the HRTF from the slab package
+    - data/hrtfs/hrtf_nh2.sofa
+  # Source positions and room configs taken from McDermott's paper
+  source_positions:  # Includes stop value
+    azimuth: {start: 0, stop: 355, step: 5}
+    elevation: {start: 0, stop: 60, step: 10}
+  room_configs:
+    - {id: 1, width: 9, length: 9, height: 10}
+    - {id: 2, width: 4, length: 5, height: 3}  # height from 2m to 3m bc src out of bounds
+    - {id: 3, width: 10, length: 10, height: 4}
+    - {id: 4, width: 5, length: 8, height: 5}
+    - {id: 5, width: 4, length: 4, height: 4}  # width, length from 3m to 4m bc src out of bounds
+  persist_brirs_individually: true
+
+# Configuration for generate_cochleagrams.py
+# stim and bkgd must be folders with .wav files
+generate_cochleagrams:
+  hrtf_labels:  # Which BRIR sets from the generate_brirs.py output to use, only name without extension
+    - slab_kemar
+    - hrtf_nh2
+  stim_path: data/raw/uso_500ms_raw
+  bkgd_path: data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz
+  use_bkgd: false
+
+# Configuration for model_playground.py
+model_playground:
+  hrtf_labels:  # Which cochleagram sets from the generate_cochleagrams.py output to use, only name without extension
+    - slab_kemar
+    - hrtf_nh2
+  model_path: models/keras/
+  models_to_use: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]

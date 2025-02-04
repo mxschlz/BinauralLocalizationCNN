@@ -3,6 +3,7 @@ import glob
 import json
 import logging
 import os
+import pprint
 import random
 import sys
 import time
@@ -18,10 +19,10 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
-from util import get_unique_folder_name
+from util import get_unique_folder_name, load_config, CochleagramConfig, Config, SourcePositionsConfig
 from legacy.CNN_preproc import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
-    MCDERMOTT_SOURCE_POSITIONS, CartesianCoordinates, MCDERMOTT_ROOM_CONFIGS
+    CartesianCoordinates, generate_source_positions, SphericalCoordinates
 from legacy.stim_util import zero_padding, normalize_binaural_stim
 
 # Needed bc there's a bug in slab.Signal's add method that doesn't preserve the samplerate
@@ -31,96 +32,118 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-
 def main():
+    generate_and_persist_cochleagrams_for_multiple_HRTFs()
+
+
+def generate_and_persist_cochleagrams_for_multiple_HRTFs():
+    config = load_config('blcnn/config.yml')
+    logger.info(f'Loaded config: {pprint.pformat(config)}')
+
+    # Check if the HRTF files specified in the yaml exist
+    for hrtf_path in config.generate_cochleagrams.hrtf_labels:
+        if not Path(f'data/brirs/{hrtf_path}').exists():
+            logger.error(f'BRIRs for the HRTF {hrtf_path} specified in config.yml do not exist. Exiting...')
+            sys.exit(1)
+
+    for hrtf_label in config.generate_cochleagrams.hrtf_labels:
+        generate_and_persist_cochleagrams_for_single_HRTF(config, hrtf_label)
+
+
+def generate_and_persist_cochleagrams_for_single_HRTF(config: Config, hrtf_label: str):
+    cochleagram_config = config.generate_cochleagrams
+
     start_time = time.time()
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
+
+    dest = get_unique_folder_name(f'data/cochleagrams/{hrtf_label}/')
+    Path(dest).mkdir(parents=True, exist_ok=False)
 
     # Resample background sounds to 48kHz
     # for file in Path('resources/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz').glob('*.wav'):
     #     slab.Sound(file).resample(48000).write(file)
     # -> Assuming now that all textures are 48kHz
 
-    path_to_stims = Path('data/raw/uso_500ms_raw')
+    path_to_stims = Path(config.generate_cochleagrams.stim_path)
     stim_paths = list(path_to_stims.glob('*.wav'))
 
-    path_to_backgrounds = Path('data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz')
+    path_to_backgrounds = Path(config.generate_cochleagrams.bkgd_path)
     bkgd_paths = list(path_to_backgrounds.glob('*.wav'))
 
-    path_to_brirs = Path('data/brirs/slab_default_kemar')
+    path_to_brirs = Path(f'data/brirs/{hrtf_label}')
 
-    no_bkgd = True
-
-
-    dest = get_unique_folder_name(f'data/cochleagrams/{path_to_brirs.name}/')
-    Path(dest).mkdir(parents=True, exist_ok=False)
+    use_bkgd = config.generate_cochleagrams.use_bkgd
+    if use_bkgd:
+        logger.error('Background noise is not yet implemented. Exiting...')
+        sys.exit(1)
 
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
     writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
 
-    # # Parallel
-    # # nr_workers = multiprocessing.cpu_count()
-    # # div, mod = divmod(len(stim_paths), nr_workers)
-    # # chunksize = div + 1 if mod else div
-    # #
-    # # logging.info(f'Using {nr_workers} workers')
-    # # logging.info(f'Chunksizes: {chunksize}')
-    # #
-    # # training_samples = []
-    # # with Pool(nr_workers) as pool:
-    # #     for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths, chunksize=chunksize),
-    # #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
-    # #         training_samples.extend(samples_from_one_sound)
-    # #         bar.update(len(samples_from_one_sound))
+    try:
+        ##### Parallel #####
+        # nr_workers = multiprocessing.cpu_count()
+        # div, mod = divmod(len(stim_paths), nr_workers)
+        # chunksize = div + 1 if mod else div
+        #
+        # logging.info(f'Using {nr_workers} workers')
+        # logging.info(f'Chunksizes: {chunksize}')
+        #
+        # training_samples = []
+        # with Pool(nr_workers) as pool:
+        #     for samples_from_one_sound in tqdm(pool.imap_unordered(generate_training_samples_from_stim_path, stim_paths, chunksize=chunksize),
+        #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
+        #         training_samples.extend(samples_from_one_sound)
+        #         bar.update(len(samples_from_one_sound))
 
-    # global inner_bar
-    # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
-    # Sequential
-    for stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths', total=len(stim_paths)):
-        for training_sample, training_coords in generate_training_samples_from_stim_path(stim_path,
-                                                                                         path_to_brirs=path_to_brirs):
-            write_tfrecord(training_sample, training_coords, writer)
-            # inner_bar.update(1)
+        ##### Sequential #####
+        # global inner_bar
+        # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
+        for stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths', total=len(stim_paths)):
+            for training_sample, training_coords in generate_training_samples_from_stim_path(config,
+                                                                                             stim_path,
+                                                                                             path_to_brirs=path_to_brirs):
+                write_tfrecord(training_sample, training_coords, writer)
+                # inner_bar.update(1)
+        # inner_bar.close()
+    except Exception as e:
+        logger.error(f'An error occurred during BRIR generation: {e}')
+    finally:
+        writer.close()
 
-    # inner_bar.close()
-    writer.close()
-
-    elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
-
-    summary = summarize_cochleagram_generation_info(path_to_brirs, path_to_stims, path_to_backgrounds, no_bkgd,
-                                                    timestamp, elapsed_time)
-    logger.info(summary)
-    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
-        f.write(summary)
-
-
-    # Assuming that for each augmented sound the positions and background noises are chosen independently
+        elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
+        summary = summarize_cochleagram_generation_info(cochleagram_config, hrtf_label, timestamp, elapsed_time, dest)
+        logger.info(summary)
+        with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+            f.write(summary)
 
 
-def summarize_cochleagram_generation_info(path_to_brirs: Path, path_to_stims: Path, path_to_backgrounds: Path,
-                                          no_bkgd: bool,
+def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
+                                          hrtf_label: str,
                                           timestamp: str,
-                                          elapsed_time: str) -> str:
+                                          elapsed_time: str,
+                                          dest: Path) -> str:
     # Load BRIR summary
+    path_to_brirs = Path(f'data/brirs/{hrtf_label}')
     with open(glob.glob((path_to_brirs / '_summary_*.txt').as_posix())[0], 'r') as f:
         brir_summary = f.read()
 
     summary = f'##### COCHLEAGRAM GENERATION INFO #####\n' \
+              f'HRTF label: {hrtf_label}\n' \
               f'Timestamp: {timestamp}\n\n' \
               f'Total elapsed time: {elapsed_time}\n' \
-              f'No Background Textures: {no_bkgd}\n' \
-              f'Path to BRIRs: {path_to_brirs}\n' \
-              f'Path to Stimuli: {path_to_stims}\n' \
-              f'Path to Backgrounds: {path_to_backgrounds}\n' \
-              f'Number of BRIRs: {len(list(path_to_brirs.glob("*.npy")))}\n' \
-              f'Number of Stimuli: {len(list(path_to_stims.glob("*.wav")))}\n' \
-              f'Number of Backgrounds: {len(list(path_to_backgrounds.glob("*.wav")))}\n\n' \
+              f'Results saved to: {dest}\n' \
+              f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
+              f'Number of Stimuli found: {len(list(glob.glob(f"{cochleagram_config.stim_path}/*.wav")))}\n' \
+              f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
+              f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
               f'{brir_summary}'
     return summary
 
 
-def generate_training_samples_from_stim_path(stim_path: Path,
+def generate_training_samples_from_stim_path(config: Config,
+                                             stim_path: Path,
                                              brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
                                              path_to_brirs: Path = Path('data', 'brirs_2024-09-13_14-13-42'),
                                              no_bkgd=True
@@ -146,7 +169,8 @@ def generate_training_samples_from_stim_path(stim_path: Path,
     #     s.play()
     augmented_sounds = [raw_stim]
 
-    stim_generator = generate_spatialized_sound(augmented_sounds, brir_dict=brir_dict, path_to_brirs=path_to_brirs)
+    source_positions = generate_source_positions(config.generate_brirs.source_positions)
+    stim_generator = generate_spatialized_sound(augmented_sounds, config.generate_brirs.room_configs, source_positions, brir_dict=brir_dict, path_to_brirs=path_to_brirs)
 
     training_samples = []
     # worker_nr = int(multiprocessing.current_process().name.split('-')[-1])
@@ -157,8 +181,11 @@ def generate_training_samples_from_stim_path(stim_path: Path,
         if no_bkgd:
             training_samples.append((transform_stim_to_cochleagram(normalized_sound), training_coordinates))
         else:
-            background = create_background(training_coordinates.room_id, training_coordinates.listener_position,
-                                           brir_dict=brir_dict, path_to_brirs=path_to_brirs)
+            background = create_background(training_coordinates.room_id,
+                                           training_coordinates.listener_position,
+                                           source_positions,
+                                           brir_dict=brir_dict,
+                                           path_to_brirs=path_to_brirs)
             snr_factor = (10 ** (-random.uniform(5, 30) / 20))
             combined_sound = normalized_sound + background * snr_factor
             training_samples.append((transform_stim_to_cochleagram(combined_sound), training_coordinates))
@@ -220,6 +247,8 @@ def augment_raw_sound(sound: slab.Sound, lowest_center_freq=100, nr_octaves=8) -
 
 
 def generate_spatialized_sound(sounds: List[slab.Sound],
+                               room_configs: List[RoomConfig],
+                               source_positions: List[SphericalCoordinates],
                                brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
                                path_to_brirs: Path = None) -> Generator[
     Tuple[slab.Sound, TrainingCoordinates], None, None]:
@@ -231,10 +260,11 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
     Returns:
 
     """
+
     for sound in sounds:
         padded_sound = zero_padding(sound, goal_duration=2, type="frontback")
         # Render sound at different positions
-        for training_coordinates in generate_training_locations(MCDERMOTT_ROOM_CONFIGS):
+        for training_coordinates in generate_training_locations(room_configs, source_positions):
             spatialized_sound = apply_brir(padded_sound, training_coordinates, brir_dict=brir_dict,
                                            path_to_brirs=path_to_brirs)
             # PBAR.update(1)
@@ -243,6 +273,7 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
 
 def create_background(room_id: int,
                       listener_position: CartesianCoordinates,
+                      source_positions: List[SphericalCoordinates],
                       brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
                       path_to_brirs: Path = None) -> slab.Sound:
     """
@@ -259,6 +290,7 @@ def create_background(room_id: int,
     Args:
         path_to_brirs:
         listener_position:
+        source_positions:
         room_id:
         brir_dict:
 
@@ -273,7 +305,12 @@ def create_background(room_id: int,
         rand_start = random.uniform(0, 3)
         texture = slab.Sound(rand_texture_path).trim(rand_start, rand_start + 2.0)
         # For spatialization we need: room_id, listener location; we pick source location randomly
-        random_location = random.choice(MCDERMOTT_SOURCE_POSITIONS)
+        # TODO: Get source positions from somewhere else.
+        #  - not from config; config file may have changed
+        #  - not from summary file of BRIR generation; ideally the summary shouldn't be used as a data source
+        #    -> Might be most straightforward and simple though
+        #  - maybe save the source positions to a file associated with the run
+        random_location = random.choice(source_positions)
         spatialized_texture = apply_brir(texture,
                                          TrainingCoordinates(room_id,
                                                              listener_position,
@@ -288,25 +325,26 @@ def create_background(room_id: int,
     return normalized_background
 
 
-def generate_training_locations(room_configs: Dict[int, RoomConfig]) -> Generator[TrainingCoordinates, None, None]:
+def generate_training_locations(room_configs: List[RoomConfig], source_positions:  List[SphericalCoordinates]) -> Generator[TrainingCoordinates, None, None]:
+    #  Dict[int, RoomConfig]
     nr_listener_positions_smallest_room = min(
-        [len(calculate_listener_positions(room_config.room_size)) for room_id, room_config in room_configs.items()])
+        [len(calculate_listener_positions(room.width, room.length)) for room in room_configs])
 
     # for augmented_sound in tqdm(range(2492)):  # ca. 31s for 2492 locations (for one sound)
-    for room_id, room_config in room_configs.items():
-        listener_positions = calculate_listener_positions(room_config.room_size)
+    for room in room_configs:
+        listener_positions = calculate_listener_positions(room.width, room.length)
         for listener_position in listener_positions:
-            for source_position in MCDERMOTT_SOURCE_POSITIONS:
+            for source_position in source_positions:
                 if random.random() < (0.025 * nr_listener_positions_smallest_room) / len(listener_positions):
                     # Normalization works: Rooms are equally represented
                     # Nr. of total locations is too big though 628k vs 545k in paper
-                    yield TrainingCoordinates(room_id, listener_position, source_position)
+                    yield TrainingCoordinates(room.id, listener_position, source_position)
 
 
 def apply_brir(sound: slab.Sound,
                training_coordinates: TrainingCoordinates,
                brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
-               path_to_brirs=None) -> slab.Sound:
+               path_to_brirs=None) -> slab.Signal:
     """
     Applies the BRIR to the given sound at the given training coordinates.
     If a BRIR dictionary is given, the BRIR is applied from the dictionary, otherwise it is calculated on the fly.
@@ -314,6 +352,7 @@ def apply_brir(sound: slab.Sound,
         brir_dict: Dictionary containing the BRIRs
         training_coordinates: TrainingCoordinates object containing the room ID, listener position and source position
         sound: slab.Sound object to which the BRIR should be applied
+        path_to_brirs: Path to the BRIRs
 
     Returns:
         slab.Sound object with the BRIR applied
