@@ -173,7 +173,6 @@ def single_example_parser(example):
         'train/image_height': tf.io.FixedLenFeature([], tf.int64),
         'train/image_width': tf.io.FixedLenFeature([], tf.int64)}
     example = tf.io.parse_single_example(example, feature_description)
-    # example['train/image'] = tf.reshape(tf.io.decode_raw(example['train/image'], tf.float32), (39, 8000, 2))
     example['train/image'] = tf.reshape(tf.io.decode_raw(example['train/image'], tf.float32), (39, 48000, 2))
 
     [L_channel, R_channel] = tf.unstack(example['train/image'], axis=2)
@@ -188,10 +187,6 @@ def single_example_parser(example):
     downsampled_reshaped = tf.stack([L_channel_downsampled, R_channel_downsampled], axis=2)
     example['train/image'] = tf.pow(downsampled_reshaped, 0.3)
 
-    # example['train/image'] = downsample(
-    #     tf.reshape(tf.io.decode_raw(example['train/image'], tf.float32), (39, 8000, 2)),
-    #     48000, 8000, window_size=4097, beta=10.06, post_rectify=True)
-    # tf.print(f'Azim: {example["train/azim"]}, Elev: {example["train/elev"]}')
     example['target'] = (
         tf.add(
             tf.multiply(
@@ -207,7 +202,6 @@ def single_example_parser(example):
             )
         )
     )
-    print(f'Azim: {example["train/azim"]}, Elev: {example["train/elev"]}, Target: {example["target"]}')
 
     return example['train/image'], example['target']#, example['train/azim'], example['train/elev']
 
