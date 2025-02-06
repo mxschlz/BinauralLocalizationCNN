@@ -12,7 +12,7 @@ import keras
 import numpy as np
 import tensorflow as tf
 
-from util import get_unique_folder_name, load_config, ModelPlaygroundConfig
+from util import get_unique_folder_name, load_config, RunModelsConfig
 from net_builder import single_example_parser
 
 logger = tf.get_logger()
@@ -22,7 +22,6 @@ coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - 
 
 def main() -> None:
     """
-    Main entry point for the model playground script.
     Loads config, disables GPU if needed, and runs the testing for each HRTF label.
     """
     # Disable GPU if needed
@@ -34,7 +33,7 @@ def main() -> None:
     logger.info(f'Visible devices: {tf.config.get_visible_devices()}')
 
     # Load config
-    eval_config = load_config('blcnn/config.yml').model_playground
+    eval_config = load_config('blcnn/config.yml').run_models
     logger.info(f'Loaded config: {eval_config}')
 
     for hrtf_label in eval_config.hrtf_labels:
@@ -42,7 +41,7 @@ def main() -> None:
         test_multiple_models(hrtf_label, eval_config)
 
 
-def test_multiple_models(hrtf_label: str, eval_config: ModelPlaygroundConfig) -> None:
+def test_multiple_models(hrtf_label: str, run_models_config: RunModelsConfig) -> None:
     """
     Run the testing for one HRTF label using the models specified in the config.
     """
@@ -55,12 +54,12 @@ def test_multiple_models(hrtf_label: str, eval_config: ModelPlaygroundConfig) ->
     dest = get_unique_folder_name(f'data/output/{path_to_cochleagrams.name}/')
     Path(dest).mkdir(parents=True, exist_ok=False)
 
-    for model_id in eval_config.models_to_use:
+    for model_id in run_models_config.models_to_use:
         model_path = path_to_models / f'net{model_id}.keras'
         test_single_model(model_path, path_to_cochleagrams, dest)
 
     elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
-    summary = summarize_testing(eval_config, path_to_cochleagrams, timestamp, elapsed_time)
+    summary = summarize_testing(run_models_config, path_to_cochleagrams, timestamp, elapsed_time)
     logger.info(summary)
     with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
         f.write(summary)
@@ -101,7 +100,7 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
         writer.writerows(zip(true_classes, pred_classes))
 
 
-def summarize_testing(eval_config: ModelPlaygroundConfig, path_to_cochleagrams: Path, timestamp: str, elapsed_time: str) -> str:
+def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: Path, timestamp: str, elapsed_time: str) -> str:
     # Load cochleagram summary
     with open(glob.glob((path_to_cochleagrams / '_summary_*.txt').as_posix())[0], 'r') as f:
         cochleagram_summary = f.read()
@@ -110,7 +109,7 @@ def summarize_testing(eval_config: ModelPlaygroundConfig, path_to_cochleagrams: 
     summary = f'##### MODEL TESTING INFO #####\n' \
               f'Timestamp: {timestamp}\n' \
               f'Total elapsed time: {elapsed_time}\n' \
-              f'Config:\n{pprint.pformat(eval_config)}\n\n' \
+              f'Config:\n{pprint.pformat(run_models_config)}\n\n' \
               f'Based on the following cochleagram generation:\n' \
               f'{cochleagram_summary}\n'
     return summary
