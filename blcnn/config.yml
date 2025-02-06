@@ -38,10 +38,21 @@ generate_cochleagrams:
   bkgd_path: data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz
   use_bkgd: false
 
-# Configuration for model_playground.py
-model_playground:
+# Configuration for run_models.py
+run_models:
   hrtf_labels:  # Which cochleagram sets from the generate_cochleagrams.py output to use, only name without extension
     - slab_kemar
     - hrtf_nh2
-  model_path: models/keras/
-  models_to_use: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  models_to_use: [1, 2]
+
+
+# Configuration for plotting.py
+plotting:
+  hrtf_labels:  # Which runs to plot
+    - slab_kemar
+    - hrtf_nh2
+  binned: true
+  nr_elevation_bins: 11  # No effect if binned is false
+  nr_azimuth_bins: 13  # No effect if binned is false
+  show_single_responses: false
+  style: 'debug'

@@ -78,17 +78,26 @@ class CochleagramConfig:
 
 
 @dataclass
-class ModelPlaygroundConfig:
+class RunModelsConfig:
     hrtf_labels: List[str]
-    model_path: str
     models_to_use: List[int]
+
+@dataclass
+class PlottingConfig:
+    hrtf_labels: List[str]
+    binned: bool
+    nr_elevation_bins: int
+    nr_azimuth_bins: int
+    show_single_responses: bool
+    style: str
 
 
 @dataclass
 class Config:
     generate_brirs: BRIRConfig
     generate_cochleagrams: CochleagramConfig
-    model_playground: ModelPlaygroundConfig
+    run_models: RunModelsConfig
+    plotting: PlottingConfig
 
 
 def load_config(file_path: str) -> Config:
@@ -127,10 +136,17 @@ def load_config(file_path: str) -> Config:
             bkgd_path=raw_config['generate_cochleagrams']['bkgd_path'],
             use_bkgd=raw_config['generate_cochleagrams']['use_bkgd']
         ),
-        model_playground=ModelPlaygroundConfig(
-            hrtf_labels=raw_config['model_playground']['hrtf_labels'],
-            model_path=raw_config['model_playground']['model_path'],
-            models_to_use=raw_config['model_playground']['models_to_use']
+        run_models=RunModelsConfig(
+            hrtf_labels=raw_config['run_models']['hrtf_labels'],
+            models_to_use=raw_config['run_models']['models_to_use']
+        ),
+        plotting=PlottingConfig(
+            hrtf_labels=raw_config['plotting']['hrtf_labels'],
+            binned=raw_config['plotting']['binned'],
+            nr_elevation_bins=raw_config['plotting']['nr_elevation_bins'],
+            nr_azimuth_bins=raw_config['plotting']['nr_azimuth_bins'],
+            show_single_responses=raw_config['plotting']['show_single_responses'],
+            style=raw_config['plotting']['style']
         )
     )
 

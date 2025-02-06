@@ -1,35 +1,46 @@
 import csv
-import sys
+import glob
 from pathlib import Path
-from collections import defaultdict
 
 import keras
-import matplotlib
+import numpy as np
 import visualkeras
 from PIL import ImageFont
-# matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
-import numpy as np
-import scipy
-from matplotlib.collections import LineCollection
+
+from blcnn.util import load_config
 
 
 def main() -> None:
+    # Go through labels in config and create one plot for each label and net
+
+    plotting_config = load_config('blcnn/config.yml').plotting
+    for hrtf_label in plotting_config.hrtf_labels:
+        print(f'Plotting for HRTF: {hrtf_label}')
+        # Load data available in the folder 'data/output/{hrtf_label}'
+        data_folder = Path(f'data/output/{hrtf_label}')
+        for result_file in glob.glob(str(data_folder / '*.csv')):
+            print(f'Generating plot for file: {result_file}')
+            data = read_single_cnn_result(Path(result_file))
+            title = f'Localization Accuracy: {hrtf_label} - {Path(result_file).stem}'
+            plt = plot_localization_accuracy(data,
+                                             nr_elevation_bins=plotting_config.nr_elevation_bins,
+                                             nr_azimuth_bins=plotting_config.nr_azimuth_bins,
+                                             binned=plotting_config.binned,
+                                             show_single_responses=plotting_config.show_single_responses,
+                                             style=plotting_config.style)
+            plt.title(title)
+            plt.savefig(data_folder / f'{Path(result_file).stem}.png', dpi=400)
+
+            # Clear the plot for the next file
+            plt.clf()
+            plt.close()
+
+
     # data = dummy_data(max_deviation=3, center_skew=2, nr_preds_per_speaker=3,
     #                azimuth_min=-30, azimuth_max=30, azimuth_step=5,
     #                elevation_min=-30, elevation_max=30, elevation_step=5)
-    # data = read_cnn_results(Path('data', 'results', 'results_default'))
-    # data = read_cnn_results(Path('data', 'results', 'results_test_2024-11-25'))
-    # data = read_single_cnn_result(Path('/home/neurobio/Repositories/afrancl-BinauralLocalizationCNN/tf1_out_2024-12-16_14-03-23.csv'))
-    # data = read_single_cnn_result(Path('/Users/david/Repositories/ma/BinauralLocalizationCNN/output/for_cochleagrams_2024-12-17_19-14-28/net1_2024-12-18_01-43-15.csv'))
-    # data = read_single_cnn_result(Path('/output/for_cochleagrams_2024-12-18_02-36-53/net1_2024-12-18_10-16-06.csv'))
-    data = read_single_cnn_result(Path('data/output/test_kemar/net1_2025-01-10_12-58-52.csv'))
-    # data = read_single_cnn_result(Path('/Users/david/Repositories/ma/BinauralLocalizationCNN/output/net1_2024-12-17_03-15-21.csv'))
-
-    # print(np.unique(data[:, :2], axis=0))
-    print(f'All data shape: {data.shape}')
-
-    plot_localization_accuracy(data, nr_elevation_bins=7, nr_azimuth_bins=9, binned=True, show_single_responses=False, style='debug')
+    # plot_localization_accuracy(data, nr_elevation_bins=7, nr_azimuth_bins=9, binned=True, show_single_responses=False, style='debug')
 
 
 def read_cnn_results(path: Path):
@@ -132,13 +143,7 @@ def plot_localization_accuracy(data,
                                nr_elevation_bins=4,
                                speakers_on_grid=False,
                                style=None,
-                               # azimuth_min=-180,
-                               # azimuth_max=175,
-                               # azimuth_step=5,
-                               # elevation_min=0,
-                               # elevation_max=60,
-                               # elevation_step=10
-                               ):
+                               ) -> plt:
     """
     better name: plot_localization_skew_grid?
     Plots the results of a localization experiment, given the data was produced with a grid of speakers.
@@ -353,7 +358,9 @@ def plot_localization_accuracy(data,
             axis.scatter(single_azim_pred, single_elev_pred, c='None', edgecolors=single_response_color, linewidth=single_response_linewidth, s=single_response_size, zorder=1)
 
 
-    plt.show()
+    # plt.show()
+    # plt.savefig('test.png', dpi=400)
+    return plt
 
 
 def plot_model_diagram(model: keras.Sequential):
