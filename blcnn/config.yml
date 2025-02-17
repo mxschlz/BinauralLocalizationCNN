@@ -51,8 +51,12 @@ plotting:
   hrtf_labels:  # Which runs to plot
     - slab_kemar
     - hrtf_nh2
+  data_selection: 'front'  # front, back, all
+  folded: true
   binned: true
-  nr_elevation_bins: 11  # No effect if binned is false
-  nr_azimuth_bins: 13  # No effect if binned is false
+#  nr_elevation_bins: 11  # No effect if binned is false
+  nr_elevation_bins: 6  # No effect if binned is false
+#  nr_azimuth_bins: 13  # No effect if binned is false
+  nr_azimuth_bins: 7  # No effect if binned is false
   show_single_responses: false
   style: 'debug'

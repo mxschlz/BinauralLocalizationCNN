@@ -15,14 +15,19 @@ def main() -> None:
     # Go through labels in config and create one plot for each label and net
 
     plotting_config = load_config('blcnn/config.yml').plotting
+    if plotting_config.data_selection == 'back' and plotting_config.folded == False:
+        print('Warning: Data selection is "back" but folded is False. Setting folded to True.')
+        plotting_config.folded = True
+
+
     for hrtf_label in plotting_config.hrtf_labels:
         print(f'Plotting for HRTF: {hrtf_label}')
         # Load data available in the folder 'data/output/{hrtf_label}'
         data_folder = Path(f'data/output/{hrtf_label}')
         for result_file in glob.glob(str(data_folder / '*.csv')):
             print(f'Generating plot for file: {result_file}')
-            data = read_single_cnn_result(Path(result_file))
-            title = f'Localization Accuracy: {hrtf_label} - {Path(result_file).stem}'
+            data = read_single_cnn_result(Path(result_file), plotting_config.data_selection, plotting_config.folded)
+            title = f'Localization Accuracy: {hrtf_label} - {Path(result_file).stem} - {plotting_config.data_selection} - folded: {plotting_config.folded}'
             plt = plot_localization_accuracy(data,
                                              nr_elevation_bins=plotting_config.nr_elevation_bins,
                                              nr_azimuth_bins=plotting_config.nr_azimuth_bins,
@@ -71,15 +76,22 @@ def read_cnn_results(path: Path):
             data = np.vstack((data, d))
     return data
 
-def read_single_cnn_result(path: Path):
+
+def read_single_cnn_result(path: Path, data_selection: str, folded: bool):
     with open(path, newline='') as csvfile:
         reader = csv.DictReader(csvfile)
-        return np.array([[*CNNpos_to_loc(int(row['true_class'])),
-                          *CNNpos_to_loc(int(row['pred_class']))]
-                         for row in reader])
+        l = []
+        for row in reader:
+            true_class_loc = CNNpos_to_loc(int(row['true_class']), data_selection=data_selection, folded=folded)
+            if true_class_loc is None: # If the true class is not in the desired area, skip this row
+                continue
+            # For the predictions we don't want to filter out any values
+            pred_class_loc = CNNpos_to_loc(int(row['pred_class']), data_selection='all', folded=folded)
+            l.append([*true_class_loc, *pred_class_loc])
+        return np.array(l)
 
 
-def CNNpos_to_loc(CNN_pos, bin_size=5):
+def CNNpos_to_loc(CNN_pos, data_selection='all',folded=False, bin_size=5):
     """
     convert bin label in the CNN from Francl 2022 into [azim, elev] positions
     :param CNN_pos: int, [0, 503]
@@ -91,11 +103,19 @@ def CNNpos_to_loc(CNN_pos, bin_size=5):
     azim = bin_size * mod
     if azim >= 180:
         azim -= 360
+
+    # If we only want front or back data, return None if the true class is not in the desired area
+    if data_selection == 'front' and not -90 < azim < 90:
+        return None
+    elif data_selection == 'back' and -90 < azim < 90:
+        return None
+
     # Fold back to front
-    if azim > 90:
-        azim = 180 - azim
-    elif azim < -90:
-        azim = -180 - azim
+    if folded:
+        if azim > 90:
+            azim = 180 - azim
+        elif azim < -90:
+            azim = -180 - azim
 
     elev = bin_size * div * 2
     if elev > 60:

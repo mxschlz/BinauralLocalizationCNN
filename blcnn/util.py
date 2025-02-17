@@ -5,7 +5,7 @@ from typing import List, Any
 import yaml
 
 '''
-Structure:
+Structure (old):
 Config
     generate_brirs: BRIRConfig
         hrtfs: List[str]
@@ -82,9 +82,12 @@ class RunModelsConfig:
     hrtf_labels: List[str]
     models_to_use: List[int]
 
+
 @dataclass
 class PlottingConfig:
     hrtf_labels: List[str]
+    data_selection: str
+    folded: bool
     binned: bool
     nr_elevation_bins: int
     nr_azimuth_bins: int
@@ -142,6 +145,8 @@ def load_config(file_path: str) -> Config:
         ),
         plotting=PlottingConfig(
             hrtf_labels=raw_config['plotting']['hrtf_labels'],
+            data_selection=raw_config['plotting']['data_selection'],
+            folded=raw_config['plotting']['folded'],
             binned=raw_config['plotting']['binned'],
             nr_elevation_bins=raw_config['plotting']['nr_elevation_bins'],
             nr_azimuth_bins=raw_config['plotting']['nr_azimuth_bins'],
