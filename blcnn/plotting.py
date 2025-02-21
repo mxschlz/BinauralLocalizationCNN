@@ -4,9 +4,11 @@ from pathlib import Path
 
 import keras
 import numpy as np
+import scipy
 import visualkeras
 from PIL import ImageFont
 from matplotlib import pyplot as plt
+from matplotlib.table import Table
 
 from blcnn.util import load_config
 
@@ -18,7 +20,6 @@ def main() -> None:
     if plotting_config.data_selection == 'back' and plotting_config.folded == False:
         print('Warning: Data selection is "back" but folded is False. Setting folded to True.')
         plotting_config.folded = True
-
 
     for hrtf_label in plotting_config.hrtf_labels:
         print(f'Plotting for HRTF: {hrtf_label}')
@@ -40,7 +41,6 @@ def main() -> None:
             # Clear the plot for the next file
             plt.clf()
             plt.close()
-
 
     # data = dummy_data(max_deviation=3, center_skew=2, nr_preds_per_speaker=3,
     #                azimuth_min=-30, azimuth_max=30, azimuth_step=5,
@@ -83,7 +83,7 @@ def read_single_cnn_result(path: Path, data_selection: str, folded: bool):
         l = []
         for row in reader:
             true_class_loc = CNNpos_to_loc(int(row['true_class']), data_selection=data_selection, folded=folded)
-            if true_class_loc is None: # If the true class is not in the desired area, skip this row
+            if true_class_loc is None:  # If the true class is not in the desired area, skip this row
                 continue
             # For the predictions we don't want to filter out any values
             pred_class_loc = CNNpos_to_loc(int(row['pred_class']), data_selection='all', folded=folded)
@@ -91,14 +91,14 @@ def read_single_cnn_result(path: Path, data_selection: str, folded: bool):
         return np.array(l)
 
 
-def CNNpos_to_loc(CNN_pos, data_selection='all',folded=False, bin_size=5):
+def CNNpos_to_loc(CNN_pos, data_selection='all', folded=False, bin_size=5):
     """
     convert bin label in the CNN from Francl 2022 into [azim, elev] positions
     :param CNN_pos: int, [0, 503]
     :param bin_size: int, degree. note that elevation bin size is 2*bin_size
     :return: tuple, (azi, ele)
     """
-    n_azim = int(360 / bin_size)   # bin_size=5 -> 72
+    n_azim = int(360 / bin_size)  # bin_size=5 -> 72
     div, mod = divmod(CNN_pos, n_azim)
     azim = bin_size * mod
     if azim >= 180:
@@ -237,13 +237,29 @@ def plot_localization_accuracy(data,
         speaker_grid_color = 'grey'
         show_speaker_locs = True
 
-
     # azimuths = [a for a in range(azimuth_min, azimuth_max + 1, azimuth_step)]
     # elevations = [e for e in range(elevation_min, elevation_max + 1, elevation_step)]
 
     # Get speaker locations that exist in the data -> Only draw the grid for those
     azimuths = np.unique(data[:, 0])
     elevations = np.unique(data[:, 1])
+
+    ### Paul's code
+    targets = data[:, :2]  # [az, ele], first two columns
+    responses = data[:, 2:]  # [az, ele], last two columns
+
+    # Reverse engineering the shape of data
+    # It must be a 2D array with shape (n, 4) where n is the number of trials
+
+    #  elevation gain, rmse, response variability
+    elevation_gain, n = scipy.stats.linregress(targets[:, 1], responses[:, 1])[:2]
+    rmse = np.sqrt(np.mean(np.square(targets - responses), axis=0))
+    variability = np.mean([np.std(responses[np.where(np.all(targets == target, axis=1))], axis=0)
+                           for target in np.unique(targets, axis=0)], axis=0)
+    az_rmse, ele_rmse = rmse[0], rmse[1]
+    az_sd, ele_sd = variability[0], variability[1]
+    az_var, ele_var = az_sd ** 2, ele_sd ** 2
+    ### End of Paul's code
 
     # mean perceived location for each target speaker
     temp = []
@@ -278,7 +294,8 @@ def plot_localization_accuracy(data,
             elev_end = elev_start + bin_height
 
             # Select data points
-            mask = (data[:, 0] >= azim_start) & (data[:, 0] <= azim_end) & (data[:, 1] >= elev_start) & (data[:, 1] <= elev_end)
+            mask = (data[:, 0] >= azim_start) & (data[:, 0] <= azim_end) & (data[:, 1] >= elev_start) & (
+                    data[:, 1] <= elev_end)
             bin_data = np.mean(data[mask], axis=0)
             # -> If certain coords don't have an example, the speaker grid won't be square
             temp.append((bin_data[0], bin_data[1], bin_data[2], bin_data[3]))
@@ -292,6 +309,7 @@ def plot_localization_accuracy(data,
     # fig, (axis, table_axis) = plt.subplots(2, 1, height_ratios=[4, 1])
     axis = plt.subplot()
     # axis.set_aspect('equal', adjustable='box')
+    plt.subplots_adjust(bottom=0.4)
 
     # Set limits (w/ margins) in advance to speed up drawing
     min_azim_pred = np.min(data[:, 2])
@@ -302,6 +320,26 @@ def plot_localization_accuracy(data,
     delta_elev_pred = (max_elev_pred - min_elev_pred) * 0.05
     axis.set_xlim(left=min_azim_pred - delta_azim_pred, right=max_azim_pred + delta_azim_pred)
     axis.set_ylim(bottom=min_elev_pred - delta_elev_pred, top=max_elev_pred + delta_elev_pred)
+
+    # Create table with metrics
+    metrics = [
+        ["Elevation Gain", f"{elevation_gain:.2f}"],
+        ["Azimuth RMSE", f"{az_rmse:.2f}"],
+        ["Elevation RMSE", f"{ele_rmse:.2f}"],
+        ["Azimuth Variability", f"{az_var:.2f}"],
+        ["Elevation Variability", f"{ele_var:.2f}"]
+    ]
+
+    table = Table(axis, bbox=[0, -0.6, 1, 0.4])
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+    table.scale(1, 1.5)
+
+    for i, (key, value) in enumerate(metrics):
+        table.add_cell(i, 0, width=0.5, height=0.2, text=key, loc='center', facecolor='lightgrey')
+        table.add_cell(i, 1, width=0.5, height=0.2, text=value, loc='center', facecolor='white')
+
+    axis.add_table(table)
 
     # Switch out speaker locations with sector means
     # A bit hacky, just reuses the draw method and switches out data, we need a copy of the original data to draw some details
@@ -319,7 +357,6 @@ def plot_localization_accuracy(data,
         azimuths = bin_azimuths
         elevations = bin_elevations
         show_single_response_lines = False
-
 
     def colors(azim, elev, azim_min, azim_max, elev_min, elev_max):
         r = (azim - azim_min) / (azim_max - azim_min)
@@ -339,8 +376,10 @@ def plot_localization_accuracy(data,
             axis.plot([azim, azim_pred], [elev, elev_pred], color=color, linewidth=0.5, zorder=3)
 
     # Plot reference color points
-    axis.scatter([min_azim, min_azim, max_azim, max_azim, min_azim], [min_elev, max_elev, max_elev, min_elev, min_elev], color=[colors(azim, elev, min_azim, max_azim, min_elev, max_elev) for azim, elev in [(min_azim, min_elev), (min_azim, max_elev), (max_azim, max_elev), (max_azim, min_elev), (min_azim, min_elev)]], s=30, marker='+', zorder=0)
-
+    axis.scatter([min_azim, min_azim, max_azim, max_azim, min_azim], [min_elev, max_elev, max_elev, min_elev, min_elev],
+                 color=[colors(azim, elev, min_azim, max_azim, min_elev, max_elev) for azim, elev in
+                        [(min_azim, min_elev), (min_azim, max_elev), (max_azim, max_elev), (max_azim, min_elev),
+                         (min_azim, min_elev)]], s=30, marker='+', zorder=0)
 
     # Plot speaker grid and grid of mean predictions
     for azim in azimuths:  # Vertical lines
@@ -349,7 +388,8 @@ def plot_localization_accuracy(data,
         # Doesn't work in binned mode if there are target locations missing as the mean bin locations are not equal anymore for all azims and elevs in a row or column
 
         # Plot vertical speaker grid lines
-        axis.plot(speaker_azims, speaker_elevs, color=speaker_grid_color, linewidth=0.5, linestyle=speaker_grid_linestyle, alpha=0.5, zorder=1)
+        axis.plot(speaker_azims, speaker_elevs, color=speaker_grid_color, linewidth=0.5,
+                  linestyle=speaker_grid_linestyle, alpha=0.5, zorder=1)
 
         # Plot vertical prediction grid lines
         # axis.plot(pred_azims, pred_elevs, color=pred_grid_vertical_color, linewidth=1, zorder=2)
@@ -358,7 +398,8 @@ def plot_localization_accuracy(data,
         speaker_azims, speaker_elevs, pred_azims, pred_elevs = mean_predictions[mean_predictions[:, 1] == elev].T
 
         # Plot horizontal speaker grid lines
-        axis.plot(speaker_azims, speaker_elevs, color=speaker_grid_color, linewidth=0.5, linestyle=speaker_grid_linestyle, alpha=0.5, zorder=1)
+        axis.plot(speaker_azims, speaker_elevs, color=speaker_grid_color, linewidth=0.5,
+                  linestyle=speaker_grid_linestyle, alpha=0.5, zorder=1)
 
         # Plot horizontal prediction grid lines
         # axis.plot(pred_azims, pred_elevs, color=pred_grid_horizontal_color, linewidth=1, zorder=2)
@@ -371,12 +412,15 @@ def plot_localization_accuracy(data,
             # For correct color: get coords of the target speaker location that the corresponding mean point belongs to
             # For correct position: get coords of the single response and coords of the mean point it belongs to
             mask = (mean_predictions[:, 0] == single_azim) & (mean_predictions[:, 1] == single_elev)
-            [[mean_azim, mean_elev, mean_azim_pred, mean_elev_pred]] = mean_predictions[mask, :]  # Unpack possible because it must be a single value
-            axis.plot([mean_azim_pred, single_azim_pred], [mean_elev_pred, single_elev_pred], color=colors(mean_azim, mean_elev, min_azim, max_azim, min_elev, max_elev), linestyle='--', linewidth=0.2, alpha=0.3, zorder=1)
+            [[mean_azim, mean_elev, mean_azim_pred, mean_elev_pred]] = mean_predictions[mask,
+                                                                       :]  # Unpack possible because it must be a single value
+            axis.plot([mean_azim_pred, single_azim_pred], [mean_elev_pred, single_elev_pred],
+                      color=colors(mean_azim, mean_elev, min_azim, max_azim, min_elev, max_elev), linestyle='--',
+                      linewidth=0.2, alpha=0.3, zorder=1)
         if show_single_responses:
             # Also plot single predictions
-            axis.scatter(single_azim_pred, single_elev_pred, c='None', edgecolors=single_response_color, linewidth=single_response_linewidth, s=single_response_size, zorder=1)
-
+            axis.scatter(single_azim_pred, single_elev_pred, c='None', edgecolors=single_response_color,
+                         linewidth=single_response_linewidth, s=single_response_size, zorder=1)
 
     # plt.show()
     # plt.savefig('test.png', dpi=400)
