@@ -26,7 +26,7 @@ Config
         persist_brirs_individually: bool
     generate_cochleagrams: CochleagramConfig
         hrtf_labels: List[str]
-        stim_path: str
+        stim_paths: List[str]
         bkgd_path: str
         use_bkgd: bool
     model_playground: ModelPlaygroundConfig
@@ -72,20 +72,20 @@ class BRIRConfig:
 @dataclass
 class CochleagramConfig:
     hrtf_labels: List[str]
-    stim_path: str
+    stim_paths: List[str]
     bkgd_path: str
     use_bkgd: bool
 
 
 @dataclass
 class RunModelsConfig:
-    hrtf_labels: List[str]
+    labels: List[str]
     models_to_use: List[int]
 
 
 @dataclass
 class PlottingConfig:
-    hrtf_labels: List[str]
+    labels: List[str]
     data_selection: str
     folded: bool
     binned: bool
@@ -135,16 +135,16 @@ def load_config(file_path: str) -> Config:
         ),
         generate_cochleagrams=CochleagramConfig(
             hrtf_labels=raw_config['generate_cochleagrams']['hrtf_labels'],
-            stim_path=raw_config['generate_cochleagrams']['stim_path'],
+            stim_paths=raw_config['generate_cochleagrams']['stim_paths'],
             bkgd_path=raw_config['generate_cochleagrams']['bkgd_path'],
             use_bkgd=raw_config['generate_cochleagrams']['use_bkgd']
         ),
         run_models=RunModelsConfig(
-            hrtf_labels=raw_config['run_models']['hrtf_labels'],
+            labels=raw_config['run_models']['labels'],
             models_to_use=raw_config['run_models']['models_to_use']
         ),
         plotting=PlottingConfig(
-            hrtf_labels=raw_config['plotting']['hrtf_labels'],
+            labels=raw_config['plotting']['labels'],
             data_selection=raw_config['plotting']['data_selection'],
             folded=raw_config['plotting']['folded'],
             binned=raw_config['plotting']['binned'],

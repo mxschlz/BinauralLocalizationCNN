@@ -4,6 +4,7 @@ import logging
 import pickle
 import sys
 import time
+import traceback
 from math import floor
 from multiprocessing import Pool
 from pathlib import Path
@@ -129,7 +130,7 @@ def generate_and_persist_BRIRs_for_single_HRTF(brir_config: BRIRConfig, hrtf_pat
                     brir_dict[result[0]] = result[1]
             pickle.dump(brir_dict, open(dest / 'brir_dict.pkl', 'wb'))
     except Exception as e:
-        logger.error(f'An error occurred during BRIR generation: {e}')
+        logger.error(f'An error occurred during BRIR generation:\n{traceback.print_exc()}')
     finally:
         elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
         summary = summarize_brir_generation_info(brir_config, hrtf_path, timestamp, elapsed_time, dest)

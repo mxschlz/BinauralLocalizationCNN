@@ -15,17 +15,20 @@
 generate_brirs:
   hrtfs:
     - slab_kemar  # Special case that uses the HRTF from the slab package
-    - data/hrtfs/hrtf_nh2.sofa
+#    - data/hrtfs/hrtf_nh2.sofa
   # Source positions and room configs taken from McDermott's paper
   source_positions:  # Includes stop value
     azimuth: {start: 0, stop: 355, step: 5}
     elevation: {start: 0, stop: 60, step: 10}
+#    azimuth: { start: 0, stop: 0, step: 1 }
+#    elevation: { start: 0, stop: 60, step: 10 }
   room_configs:
     - {id: 1, width: 9, length: 9, height: 10}
     - {id: 2, width: 4, length: 5, height: 3}  # height from 2m to 3m bc src out of bounds
     - {id: 3, width: 10, length: 10, height: 4}
     - {id: 4, width: 5, length: 8, height: 5}
     - {id: 5, width: 4, length: 4, height: 4}  # width, length from 3m to 4m bc src out of bounds
+#    - {id: 1, width: 5, length: 4, height: 3}
   persist_brirs_individually: true
 
 # Configuration for generate_cochleagrams.py
@@ -33,30 +36,49 @@ generate_brirs:
 generate_cochleagrams:
   hrtf_labels:  # Which BRIR sets from the generate_brirs.py output to use, only name without extension
     - slab_kemar
-    - hrtf_nh2
-  stim_path: data/raw/uso_500ms_raw
+#    - hrtf_nh2
+  stim_paths:  # List of paths to stim folders. Generates cochleagrams for all hrtf and stim path combinations
+#    - data/raw/uso_500ms_raw
+    - data/raw/tones/flute
+    - data/raw/tones/harmoniccomplex
+    - data/raw/tones/viola
+    - data/raw/tones/viola_complex
   bkgd_path: data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz
   use_bkgd: false
 
 # Configuration for run_models.py
 run_models:
-  hrtf_labels:  # Which cochleagram sets from the generate_cochleagrams.py output to use, only name without extension
-    - slab_kemar
-    - hrtf_nh2
-  models_to_use: [1, 2]
+#  hrtf_labels:  # Which cochleagram sets from the generate_cochleagrams.py output to use, only name without extension
+#    - slab_kemar
+#    - hrtf_nh2
+  labels: # <hrtf_label>_<stim_path>
+#    - slab_kemar
+#    - uso_500ms_raw_slab_kemar_2
+    - flute_slab_kemar
+    - harmoniccomplex_slab_kemar
+    - viola_complex_slab_kemar
+    - viola_slab_kemar
+  models_to_use: [1]
 
 
 # Configuration for plotting.py
 plotting:
-  hrtf_labels:  # Which runs to plot
-    - slab_kemar
-    - hrtf_nh2
-  data_selection: 'front'  # front, back, all
-  folded: true
-  binned: true
+#  hrtf_labels:  # Which runs to plot
+#    - slab_kemar
+#    - hrtf_nh2
+  labels: # <hrtf_label>_<stim_path>  Which runs to plot
+#    - slab_kemar_5
+    - uso_500ms_raw_slab_kemar_2
+#    - flute_slab_kemar_1
+#    - harmoniccomplex_slab_kemar_1
+#    - viola_complex_slab_kemar_1
+#    - viola_slab_kemar_1
+  data_selection: 'all'  # front, back, all
+  folded: false
+  binned: false
 #  nr_elevation_bins: 11  # No effect if binned is false
   nr_elevation_bins: 6  # No effect if binned is false
 #  nr_azimuth_bins: 13  # No effect if binned is false
   nr_azimuth_bins: 7  # No effect if binned is false
-  show_single_responses: false
+  show_single_responses: true
   style: 'debug'

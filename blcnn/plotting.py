@@ -21,14 +21,14 @@ def main() -> None:
         print('Warning: Data selection is "back" but folded is False. Setting folded to True.')
         plotting_config.folded = True
 
-    for hrtf_label in plotting_config.hrtf_labels:
-        print(f'Plotting for HRTF: {hrtf_label}')
+    for label in plotting_config.labels:
+        print(f'Plotting for HRTF: {label}')
         # Load data available in the folder 'data/output/{hrtf_label}'
-        data_folder = Path(f'data/output/{hrtf_label}')
+        data_folder = Path(f'data/output/{label}')
         for result_file in glob.glob(str(data_folder / '*.csv')):
             print(f'Generating plot for file: {result_file}')
             data = read_single_cnn_result(Path(result_file), plotting_config.data_selection, plotting_config.folded)
-            title = f'Localization Accuracy: {hrtf_label} - {Path(result_file).stem} - {plotting_config.data_selection} - folded: {plotting_config.folded}'
+            title = f'Localization Accuracy: {label} - {Path(result_file).stem} - {plotting_config.data_selection} - folded: {plotting_config.folded}'
             plt = plot_localization_accuracy(data,
                                              nr_elevation_bins=plotting_config.nr_elevation_bins,
                                              nr_azimuth_bins=plotting_config.nr_azimuth_bins,
@@ -320,6 +320,8 @@ def plot_localization_accuracy(data,
     delta_elev_pred = (max_elev_pred - min_elev_pred) * 0.05
     axis.set_xlim(left=min_azim_pred - delta_azim_pred, right=max_azim_pred + delta_azim_pred)
     axis.set_ylim(bottom=min_elev_pred - delta_elev_pred, top=max_elev_pred + delta_elev_pred)
+    # axis.set_xlim(left=-180, right=180)
+    # axis.set_ylim(bottom=-100, top=100)
 
     # Create table with metrics
     metrics = [
