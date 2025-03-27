@@ -11,6 +11,7 @@ import coloredlogs
 import keras
 import numpy as np
 import tensorflow as tf
+from tqdm import tqdm
 
 from util import get_unique_folder_name, load_config, RunModelsConfig
 from net_builder import single_example_parser
@@ -36,12 +37,12 @@ def main() -> None:
     eval_config = load_config('blcnn/config.yml').run_models
     logger.info(f'Loaded config: {eval_config}')
 
-    for hrtf_label in eval_config.hrtf_labels:
-        logger.info(f'Testing with HRTF: {hrtf_label}')
-        test_multiple_models(hrtf_label, eval_config)
+    for label in eval_config.labels:
+        logger.info(f'Testing with HRTF: {label}')
+        test_multiple_models(label, eval_config)
 
 
-def test_multiple_models(hrtf_label: str, run_models_config: RunModelsConfig) -> None:
+def test_multiple_models(label: str, run_models_config: RunModelsConfig) -> None:
     """
     Run the testing for one HRTF label using the models specified in the config.
     """
@@ -49,7 +50,7 @@ def test_multiple_models(hrtf_label: str, run_models_config: RunModelsConfig) ->
     timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
 
     path_to_models = Path('models/keras/')
-    path_to_cochleagrams = Path(f'data/cochleagrams/{hrtf_label}')
+    path_to_cochleagrams = Path(f'data/cochleagrams/{label}')
 
     dest = get_unique_folder_name(f'data/output/{path_to_cochleagrams.name}/')
     Path(dest).mkdir(parents=True, exist_ok=False)
@@ -85,19 +86,23 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
     # Predict
     true_classes = []
     pred_classes = []
+    stim_names = []
 
-    for predictions, labels in predict_with_ground_truth(model, dataset):
+    for predictions, labels, names in tqdm(predict_with_ground_truth(model, dataset), unit='batches'):
         true_classes.append(labels.numpy())
         pred_classes.append(predictions.numpy())
+        stim_names.append(names.numpy())
 
     true_classes = np.concatenate(true_classes, axis=0)
     pred_classes = np.concatenate(pred_classes, axis=0).argmax(axis=1)
+    stim_names = np.concatenate(stim_names, axis=0)
+    stim_names = [name.decode('utf-8') for name in stim_names]
 
     # write to CSV
     with open(dest / f'{model_path.name.split(".")[0]}.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['true_class', 'pred_class'])
-        writer.writerows(zip(true_classes, pred_classes))
+        writer.writerow(['true_class', 'pred_class', 'stim_name'])
+        writer.writerows(zip(true_classes, pred_classes, stim_names))
 
 
 def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: Path, timestamp: str, elapsed_time: str) -> str:
@@ -128,9 +133,9 @@ def predict_with_ground_truth(model, dataset):
         labels: The ground truth labels for the batch.
     """
     for batch in dataset:
-        inputs, labels = batch  # Extract inputs and labels from the dataset
+        inputs, labels, names = batch  # Extract inputs and labels from the dataset
         predictions = model(inputs, training=False)  # Perform inference
-        yield predictions, labels
+        yield predictions, labels, names
 
 
 if __name__ == '__main__':

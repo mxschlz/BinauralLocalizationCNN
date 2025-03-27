@@ -107,7 +107,7 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
             for training_sample, training_coords in generate_training_samples_from_stim_path(config,
                                                                                              single_stim_path,
                                                                                              path_to_brirs=path_to_brirs):
-                write_tfrecord(training_sample, training_coords, writer)
+                write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
                 # inner_bar.update(1)
         # inner_bar.close()
     except Exception as e:
@@ -198,7 +198,7 @@ def generate_training_samples_from_stim_path(config: Config,
     return training_samples
 
 
-def write_tfrecord(cochleagram, training_coords, writer):
+def write_tfrecord(cochleagram, training_coords, stim_file_name: str, writer):
     """
     Write a training sample to a tfrecord file
     Args:
@@ -210,12 +210,13 @@ def write_tfrecord(cochleagram, training_coords, writer):
 
     """
     # TODO: Doesn't shuffle data
-    data = {'train/image': tf.train.Feature(
-        bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
+    data = {
+        'train/image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
         'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
         'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
         'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
-        'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev]))
+        'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev])),
+        'train/name': tf.train.Feature(bytes_list=tf.train.BytesList(value=[stim_file_name.encode('utf-8')]))
     }
 
     # write the single record into tfrecord file
