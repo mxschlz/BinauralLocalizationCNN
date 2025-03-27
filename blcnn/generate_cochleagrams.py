@@ -1,5 +1,6 @@
 import datetime
 import glob
+import itertools
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import pprint
 import random
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import List, Dict, Generator, Tuple
 from time import strftime
@@ -40,23 +42,31 @@ def generate_and_persist_cochleagrams_for_multiple_HRTFs():
     config = load_config('blcnn/config.yml')
     logger.info(f'Loaded config: {pprint.pformat(config)}')
 
+    use_bkgd = config.generate_cochleagrams.use_bkgd
+    if use_bkgd:
+        logger.error('Background noise is not yet implemented. Exiting...')
+        sys.exit(1)
+
     # Check if the HRTF files specified in the yaml exist
     for hrtf_path in config.generate_cochleagrams.hrtf_labels:
         if not Path(f'data/brirs/{hrtf_path}').exists():
             logger.error(f'BRIRs for the HRTF {hrtf_path} specified in config.yml do not exist. Exiting...')
             sys.exit(1)
 
-    for hrtf_label in config.generate_cochleagrams.hrtf_labels:
-        generate_and_persist_cochleagrams_for_single_HRTF(config, hrtf_label)
+    inputs = [c for c in itertools.product(config.generate_cochleagrams.stim_paths, config.generate_cochleagrams.hrtf_labels)]
+    logger.info(f'Found the following combinations of inputs for cochleagram generation:\n{inputs}')
+    for stim_path, hrtf_label in inputs:
+        generate_cochleagrams(config, Path(stim_path), hrtf_label)
+        print(stim_path, hrtf_label)
 
 
-def generate_and_persist_cochleagrams_for_single_HRTF(config: Config, hrtf_label: str):
+def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
     cochleagram_config = config.generate_cochleagrams
 
     start_time = time.time()
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
-    dest = get_unique_folder_name(f'data/cochleagrams/{hrtf_label}/')
+    dest = get_unique_folder_name(f'data/cochleagrams/{stim_path.stem}_{hrtf_label}/')
     Path(dest).mkdir(parents=True, exist_ok=False)
 
     # Resample background sounds to 48kHz
@@ -64,18 +74,12 @@ def generate_and_persist_cochleagrams_for_single_HRTF(config: Config, hrtf_label
     #     slab.Sound(file).resample(48000).write(file)
     # -> Assuming now that all textures are 48kHz
 
-    path_to_stims = Path(config.generate_cochleagrams.stim_path)
-    stim_paths = list(path_to_stims.glob('*.wav'))
+    stim_paths = list(stim_path.glob('*.wav'))
 
     path_to_backgrounds = Path(config.generate_cochleagrams.bkgd_path)
     bkgd_paths = list(path_to_backgrounds.glob('*.wav'))
 
     path_to_brirs = Path(f'data/brirs/{hrtf_label}')
-
-    use_bkgd = config.generate_cochleagrams.use_bkgd
-    if use_bkgd:
-        logger.error('Background noise is not yet implemented. Exiting...')
-        sys.exit(1)
 
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
     writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
@@ -99,15 +103,16 @@ def generate_and_persist_cochleagrams_for_single_HRTF(config: Config, hrtf_label
         ##### Sequential #####
         # global inner_bar
         # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
-        for stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths', total=len(stim_paths)):
+        for single_stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths', total=len(stim_paths)):
             for training_sample, training_coords in generate_training_samples_from_stim_path(config,
-                                                                                             stim_path,
+                                                                                             single_stim_path,
                                                                                              path_to_brirs=path_to_brirs):
                 write_tfrecord(training_sample, training_coords, writer)
                 # inner_bar.update(1)
         # inner_bar.close()
     except Exception as e:
-        logger.error(f'An error occurred during BRIR generation: {e}')
+        logger.error(f'An error occurred during BRIR generation: {e}\n'
+                     f'{traceback.print_exc()}')
     finally:
         writer.close()
 
@@ -134,7 +139,7 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'Total elapsed time: {elapsed_time}\n' \
               f'Results saved to: {dest}\n' \
               f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
-              f'Number of Stimuli found: {len(list(glob.glob(f"{cochleagram_config.stim_path}/*.wav")))}\n' \
+              f'Number of Stimuli found (only if a single folder is specified): {len(list(glob.glob(f"{cochleagram_config.stim_paths}/*.wav")))}\n' \
               f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
               f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
@@ -162,7 +167,7 @@ def generate_training_samples_from_stim_path(config: Config,
     # path_to_brirs = Path('data', 'brirs_2024-09-13_14-13-42')
     # global inner_bar
 
-    raw_stim = slab.Sound(stim_path)
+    raw_stim = slab.Sound(stim_path).resample(48000)
     # raw_stim.play()
     # augmented_sounds = augment_raw_sound(raw_stim)  # Produces multiple sounds
     # for s in augmented_sounds:
