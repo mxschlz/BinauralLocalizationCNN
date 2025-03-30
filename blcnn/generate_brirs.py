@@ -167,11 +167,13 @@ def summarize_brir_generation_info(brir_config: BRIRConfig, hrtf_path: str,
               f'HRTF: {hrtf_path}\n' \
               f'Timestamp: {timestamp}\n' \
               f'Total elapsed time: {elapsed_time}\n' \
-              f'Results saved to: {dest}\n' \
               f'Number of Listener Positions: {num_listener_positions}\n' \
               f'Number of Source positions per Listener position: {num_source_positions}\n' \
               f'{len(list(dest.glob("brir_*")))}/{nr_brirs} BRIRs generated\n' \
-              f'Config:\n{pprint.pformat(brir_config)}\n'
+              f'Config:\n{pprint.pformat(brir_config)}\n\n' \
+              f'################################\n' \
+              f'Results saved to: {dest}\n' \
+              f'################################\n'
     return summary
 
 

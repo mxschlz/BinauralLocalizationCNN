@@ -88,7 +88,6 @@ def generate_and_persist_cochleagrams_for_multiple_HRTFs():
     logger.info(f'Found the following combinations of inputs for cochleagram generation:\n{inputs}')
     for stim_path, hrtf_label in inputs:
         generate_cochleagrams(config, Path(stim_path), hrtf_label)
-        print(stim_path, hrtf_label)
 
 
 def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
@@ -169,13 +168,15 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'HRTF label: {hrtf_label}\n' \
               f'Timestamp: {timestamp}\n\n' \
               f'Total elapsed time: {elapsed_time}\n' \
-              f'Results saved to: {dest}\n' \
               f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
               f'Number of Stimuli found (only if a single folder is specified): {len(list(glob.glob(f"{cochleagram_config.stim_paths}/*.wav")))}\n' \
               f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
               f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
-              f'{brir_summary}'
+              f'{brir_summary}\n\n' \
+              f'################################\n' \
+              f'Results saved to: {dest}\n' \
+              f'################################\n'
     return summary
 
 

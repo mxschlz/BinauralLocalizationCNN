@@ -59,7 +59,7 @@ def test_multiple_models(label: str, run_models_config: RunModelsConfig) -> None
         test_single_model(model_path, path_to_cochleagrams, dest)
 
     elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
-    summary = summarize_testing(run_models_config, path_to_cochleagrams, timestamp, elapsed_time)
+    summary = summarize_testing(run_models_config, path_to_cochleagrams, timestamp, elapsed_time, dest)
     logger.info(summary)
     with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
         f.write(summary)
@@ -111,7 +111,7 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
         writer.writerows(zip(true_classes, pred_classes))
 
 
-def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: Path, timestamp: str, elapsed_time: str) -> str:
+def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: Path, timestamp: str, elapsed_time: str, dest: Path) -> str:
     # Load cochleagram summary
     with open(glob.glob((path_to_cochleagrams / '_summary_*.txt').as_posix())[0], 'r') as f:
         cochleagram_summary = f.read()
@@ -122,7 +122,10 @@ def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: 
               f'Total elapsed time: {elapsed_time}\n' \
               f'Config:\n{pprint.pformat(run_models_config)}\n\n' \
               f'Based on the following cochleagram generation:\n' \
-              f'{cochleagram_summary}\n'
+              f'{cochleagram_summary}\n\n' \
+              f'################################\n' \
+              f'Results saved to: {dest}\n' \
+              f'################################\n'
     return summary
 
 
