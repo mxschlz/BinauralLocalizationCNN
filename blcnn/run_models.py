@@ -38,7 +38,6 @@ def main() -> None:
     logger.info(f'Loaded config: {eval_config}')
 
     for label in eval_config.labels:
-        logger.info(f'Testing with HRTF: {label}')
         test_multiple_models(label, eval_config)
 
 
@@ -74,6 +73,10 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
 
     model = keras.models.load_model(model_path)
 
+    nr_examples = sum(1 for _ in tqdm(tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP"), unit='examples', desc='Counting examples'))
+    # nr_examples = tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP").reduce(np.int64(0), lambda x, _: x + 1)
+    logger.info(f'Number of examples in dataset: {nr_examples}')
+
     # TODO: Better performance by batching Example protos and using parse_example; see if useful
     dataset = (
         tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP")
@@ -86,23 +89,26 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
     # Predict
     true_classes = []
     pred_classes = []
-    stim_names = []
+    # stim_names = []
 
-    for predictions, labels, names in tqdm(predict_with_ground_truth(model, dataset), unit='batches'):
+    for predictions, labels in tqdm(predict_with_ground_truth(model, dataset), total=nr_examples/16, unit='batches'):
+    # for predictions, labels, names in tqdm(predict_with_ground_truth(model, dataset), unit='batches'):
         true_classes.append(labels.numpy())
         pred_classes.append(predictions.numpy())
-        stim_names.append(names.numpy())
+        # stim_names.append(names.numpy())
 
     true_classes = np.concatenate(true_classes, axis=0)
     pred_classes = np.concatenate(pred_classes, axis=0).argmax(axis=1)
-    stim_names = np.concatenate(stim_names, axis=0)
-    stim_names = [name.decode('utf-8') for name in stim_names]
+    # stim_names = np.concatenate(stim_names, axis=0)
+    # stim_names = [name.decode('utf-8') for name in stim_names]
 
     # write to CSV
     with open(dest / f'{model_path.name.split(".")[0]}.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['true_class', 'pred_class', 'stim_name'])
-        writer.writerows(zip(true_classes, pred_classes, stim_names))
+        # writer.writerow(['true_class', 'pred_class', 'stim_name'])
+        writer.writerow(['true_class', 'pred_class'])
+        # writer.writerows(zip(true_classes, pred_classes, stim_names))
+        writer.writerows(zip(true_classes, pred_classes))
 
 
 def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: Path, timestamp: str, elapsed_time: str) -> str:
@@ -133,9 +139,10 @@ def predict_with_ground_truth(model, dataset):
         labels: The ground truth labels for the batch.
     """
     for batch in dataset:
-        inputs, labels, names = batch  # Extract inputs and labels from the dataset
+        inputs, labels = batch  # Extract inputs and labels from the dataset
+        # inputs, labels, names = batch  # Extract inputs and labels from the dataset
         predictions = model(inputs, training=False)  # Perform inference
-        yield predictions, labels, names
+        yield predictions, labels
 
 
 if __name__ == '__main__':

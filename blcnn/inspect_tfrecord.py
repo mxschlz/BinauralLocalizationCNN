@@ -10,6 +10,7 @@ import tensorflow as tf
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
+from blcnn.util import CNNpos_to_loc
 from persistent_cache import persistent_cache
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,12 @@ coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - 
 
 
 def main() -> None:
-    inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams_2024-12-17_19-14-28/cochs_hrtf_slab_default_kemar.tfrecord"))
+    inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/uso_500ms_raw_slab_kemar_onlyHRTF/cochleagrams.tfrecord"))
 
 
 def inspect_data(path: Path):
     dataset = tf.data.TFRecordDataset(path, compression_type="GZIP")
-    elevs, azims = extract_elev_azim(dataset, persistent_cache_key=path)
+    elevs, azims = extract_elev_azim(dataset)#, persistent_cache_key=path)
 
     print('#################################################################')
     print('#################### .tfrecord data analysis ####################')
@@ -115,7 +116,7 @@ def inspect_data(path: Path):
     img.show()
 
 
-@persistent_cache
+# @persistent_cache
 def extract_elev_azim(dataset: tf.data.TFRecordDataset) -> (List, List):
     # assert key is not None, 'Key must be provided for caching'
     elevs = []
@@ -124,8 +125,9 @@ def extract_elev_azim(dataset: tf.data.TFRecordDataset) -> (List, List):
         example = tf.train.Example()
         example.ParseFromString(raw_record.numpy())
         # Extract the label from the example
-        elev = example.features.feature['train/elev'].int64_list.value[0]
-        azim = example.features.feature['train/azim'].int64_list.value[0]
+        azim, elev = CNNpos_to_loc(example.features.feature['train/target'].int64_list.value[0])
+        # elev = example.features.feature['train/elev'].int64_list.value[0]
+        # azim = example.features.feature['train/azim'].int64_list.value[0]
 
         elevs.append(elev)
         azims.append(azim)

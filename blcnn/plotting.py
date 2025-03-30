@@ -66,8 +66,8 @@ def read_cnn_results(path: Path):
             # Turn reader into numpy array
             # Header: model_pred,train/azim,train/elev
             # Row example: 249,[29],[8]
-            d = np.array([[*CNNpos_to_loc(int(row['true_class'])),
-                           *CNNpos_to_loc(int(row['pred_class']))]
+            d = np.array([[*CNNpos_to_loc_extra(int(row['true_class'])),
+                           *CNNpos_to_loc_extra(int(row['pred_class']))]
                           for row in reader])
             # d = np.array([[int(row['train/azim'][1:-1]) * 5,
             #                int(row['train/elev'][1:-1]) * 5,  # *2 not needed as output is in [0, 2, 4, 6, 8, 10, 12] for some reason
@@ -82,16 +82,16 @@ def read_single_cnn_result(path: Path, data_selection: str, folded: bool):
         reader = csv.DictReader(csvfile)
         l = []
         for row in reader:
-            true_class_loc = CNNpos_to_loc(int(row['true_class']), data_selection=data_selection, folded=folded)
+            true_class_loc = CNNpos_to_loc_extra(int(row['true_class']), data_selection=data_selection, folded=folded)
             if true_class_loc is None:  # If the true class is not in the desired area, skip this row
                 continue
             # For the predictions we don't want to filter out any values
-            pred_class_loc = CNNpos_to_loc(int(row['pred_class']), data_selection='all', folded=folded)
+            pred_class_loc = CNNpos_to_loc_extra(int(row['pred_class']), data_selection='all', folded=folded)
             l.append([*true_class_loc, *pred_class_loc])
         return np.array(l)
 
 
-def CNNpos_to_loc(CNN_pos, data_selection='all', folded=False, bin_size=5):
+def CNNpos_to_loc_extra(CNN_pos, data_selection='all', folded=False, bin_size=5):
     """
     convert bin label in the CNN from Francl 2022 into [azim, elev] positions
     :param CNN_pos: int, [0, 503]

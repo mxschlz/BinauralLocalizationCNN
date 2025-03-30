@@ -140,14 +140,8 @@ def generate_and_persist_BRIRs_for_single_HRTF(brir_config: BRIRConfig, hrtf_pat
 
 
 def generate_source_positions(source_positions: SourcePositionsConfig) -> List[SphericalCoordinates]:
-    elevation_range = range(source_positions.elevation.start,
-                            source_positions.elevation.stop + 1,
-                            source_positions.elevation.step)
-    azimuth_range = range(source_positions.azimuth.start,
-                          source_positions.azimuth.stop + 1,
-                          source_positions.azimuth.step)
     return [SphericalCoordinates(azimuth, elevation) for azimuth, elevation in
-            itertools.product(azimuth_range, elevation_range)]
+            itertools.product(source_positions.azimuths, source_positions.elevations)]
 
 
 @persistent_cache
@@ -252,8 +246,11 @@ def run_brir_sim(brir_params: TrainingCoordinates[int, CartesianCoordinates, Sph
     global _room_params
     global _hrtf
     room_id, listener_position, source_position = brir_params
+    # slab.Room takes vertical polar (i.e. spherical) coordinates -> 0 to 359 clockwise
+    # No! Seems to take 0 to 359 counter-clockwise.
+
     room = slab.Room(size=_room_params[room_id], listener=[*listener_position, 1.4],
-                     source=[*source_position, 1.4])
+                     source=[abs(source_position.azim - 360), source_position.elev, 1.4])
     # Trim prob not necessary; is already below length of samples (2s); trying to trim to 2s results in crash
     return TrainingCoordinates(room_id, listener_position, source_position), room.hrir(hrtf=_hrtf).resample(48000)
 

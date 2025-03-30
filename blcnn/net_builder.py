@@ -167,69 +167,19 @@ def get_feature_dict(tf_file, is_bkgd=False):
 
 def single_example_parser(example):
     feature_description = {
-        'train/azim': tf.io.FixedLenFeature([], tf.int64),
-        'train/elev': tf.io.FixedLenFeature([], tf.int64),
+        # 'train/azim': tf.io.FixedLenFeature([], tf.int64),
+        # 'train/elev': tf.io.FixedLenFeature([], tf.int64),
         'train/image': tf.io.FixedLenFeature([], tf.string),
-        'train/image_height': tf.io.FixedLenFeature([], tf.int64),
-        'train/image_width': tf.io.FixedLenFeature([], tf.int64),
-        'train/name': tf.io.FixedLenFeature([], tf.string)}
+        # 'train/image_height': tf.io.FixedLenFeature([], tf.int64),
+        # 'train/image_width': tf.io.FixedLenFeature([], tf.int64),
+        # 'train/name': tf.io.FixedLenFeature([], tf.string)
+        'train/target': tf.io.FixedLenFeature([], tf.int64)
+        }
     example = tf.io.parse_single_example(example, feature_description)
-    example['train/image'] = tf.reshape(tf.io.decode_raw(example['train/image'], tf.float32), (39, 48000, 2))
-    example['train/name'] = tf.io.decode_compressed(example['train/name'])
+    example['train/image'] = tf.reshape(tf.io.decode_raw(example['train/image'], tf.float32), (39, 8000, 2))
+    # example['train/name'] = tf.io.decode_compressed(example['train/name'])
 
-    [L_channel, R_channel] = tf.unstack(example['train/image'], axis=2)
-    concat_for_downsample = tf.concat([L_channel, R_channel], axis=0)
-    reshaped_for_downsample = tf.expand_dims(concat_for_downsample, axis=2)
-
-    # hard coding filter shape based on previous experimentation
-    new_sig_downsampled = downsample(reshaped_for_downsample, 48000, 8000, window_size=4097, beta=10.06,
-                                     post_rectify=True)
-    # ###
-    # downsample = 6
-    #
-    # # TODO: See if the downsample tensor needs to be recreated for every sample
-    # # downsample_filter_tensor = make_downsample_filt_tensor(current_rate=48000, new_rate=8000,
-    # #                                                        window_size=4097, beta=10.06)
-    # downsample_filter_times = np.arange(-4097 / 2, int(4097 / 2))
-    # downsample_filter_response_orig = np.sinc(downsample_filter_times / downsample) / downsample
-    # downsample_filter_window = signallib.windows.kaiser(4097, 10.06)
-    # downsample_filter_response = tf.convert_to_tensor(downsample_filter_window * downsample_filter_response_orig, tf.float32)
-    # # downsample_filt_tensor = tf.constant(downsample_filter_response, tf.float32)
-    # downsample_filt_tensor = tf.expand_dims(downsample_filter_response, 0)
-    # downsample_filt_tensor = tf.expand_dims(downsample_filt_tensor, 2)
-    # downsample_filt_tensor = tf.expand_dims(downsample_filt_tensor, 3)
-    #
-    # signal = tf.expand_dims(reshaped_for_downsample, 0)
-    # new_sig_downsampled = tf.nn.conv2d(signal, downsample_filt_tensor, strides=[1, 1, downsample, 1], padding='SAME',
-    #                                   name='conv2d_cochleagram_raw')
-    #
-    #
-    #
-    # ###
-    #
-
-    downsampled_squeezed = tf.squeeze(new_sig_downsampled)
-    [L_channel_downsampled, R_channel_downsampled] = tf.split(downsampled_squeezed, num_or_size_splits=2, axis=0)
-    downsampled_reshaped = tf.stack([L_channel_downsampled, R_channel_downsampled], axis=2)
-    example['train/image'] = tf.pow(downsampled_reshaped, 0.3)
-
-    example['target'] = (
-        tf.add(
-            tf.multiply(
-                tf.constant(72, dtype=tf.int64),
-                tf.math.floordiv(
-                    example['train/elev'],
-                    tf.constant(10, dtype=tf.int64)
-                )
-            ),
-            tf.math.floordiv(
-                example['train/azim'],
-                tf.constant(5, dtype=tf.int64)
-            )
-        )
-    )
-
-    return example['train/image'], example['target'], example['train/name'] #, example['train/azim'], example['train/elev']
+    return example['train/image'], example['train/target']#, example['train/name'] #, example['train/azim'], example['train/elev']
 
 
 def make_downsample_filt_tensor(current_rate=48000, new_rate=8000, window_size=4097, beta=10.06):
@@ -287,3 +237,5 @@ def downsample(signal, current_rate, new_rate, window_size, beta, post_rectify=T
         downsampled_signal = tf.nn.relu(downsampled_signal)
 
     return downsampled_signal
+
+

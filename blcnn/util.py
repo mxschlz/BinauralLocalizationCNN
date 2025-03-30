@@ -37,16 +37,9 @@ Config
 
 
 @dataclass
-class RangeConfig:
-    start: int
-    stop: int
-    step: int
-
-
-@dataclass
 class SourcePositionsConfig:
-    azimuth: RangeConfig
-    elevation: RangeConfig
+    azimuths: List[int]
+    elevations: List[int]
 
 
 @dataclass
@@ -120,8 +113,8 @@ def load_config(file_path: str) -> Config:
         generate_brirs=BRIRConfig(
             hrtfs=raw_config['generate_brirs']['hrtfs'],
             source_positions=SourcePositionsConfig(
-                azimuth=RangeConfig(**raw_config['generate_brirs']['source_positions']['azimuth']),
-                elevation=RangeConfig(**raw_config['generate_brirs']['source_positions']['elevation'])
+                azimuths=raw_config['generate_brirs']['source_positions']['azimuth'],
+                elevations=raw_config['generate_brirs']['source_positions']['elevation']
             ),
             room_configs=[
                 RoomConfig(
@@ -169,3 +162,32 @@ def get_unique_folder_name(base_name):
     while (folder_path := base_path.with_name(f"{base_path.stem}_{counter}")).exists():
         counter += 1
     return folder_path
+
+
+def CNNpos_to_loc(CNN_pos):
+    """
+    convert bin label in the CNN from Francl 2022 into [azim, elev] positions
+    :param CNN_pos: int, [0, 503]
+    :return: tuple, (azi, ele)
+
+    # Old conversion to interaural polar coordinates, but might be
+    # wrong if original vertical polar coords use ccw wrapping
+    if azim >= 180:
+        azim -= 360
+    """
+    div, mod = divmod(CNN_pos, 72)
+    azim = mod * 5
+    elev = div * 10
+    return azim, elev
+
+def loc_to_CNNpos(azim, elev):
+    """
+    convert [azim, elev] positions into bin label in the CNN from Francl 2022
+    :param azim: int, [0, 355]
+    :param elev: int, [0, 60]
+    :return: int, [0, 503]
+    """
+    azim = azim % 360  # wrap around
+    div = elev // 10
+    mod = azim // 5
+    return div * 72 + mod

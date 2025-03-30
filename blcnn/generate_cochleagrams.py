@@ -21,7 +21,7 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
-from util import get_unique_folder_name, load_config, CochleagramConfig, Config, SourcePositionsConfig
+from util import get_unique_folder_name, load_config, CochleagramConfig, Config, SourcePositionsConfig, loc_to_CNNpos
 from legacy.CNN_preproc import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     CartesianCoordinates, generate_source_positions, SphericalCoordinates
@@ -35,7 +35,37 @@ logger.setLevel(logging.INFO)
 coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def main():
-    generate_and_persist_cochleagrams_for_multiple_HRTFs()
+    # generate_and_persist_cochleagrams_for_multiple_HRTFs()
+    hrtfs = dict()
+    loaded_hrtf = slab.HRTF('data/hrtfs/hrtf_nh2.sofa', verbose=True)
+    # loaded_hrtf = slab.HRTF.kemar()
+
+    for elev in range(0, 61, 10):
+        for azim in range(0, 356, 5):
+            hrtf = loaded_hrtf.interpolate(azim, elev).resample(48000)
+            hrtfs[(azim, elev)] = hrtf
+
+    Path.mkdir(Path('data/cochleagrams/uso_500ms_raw_hrtf_nh2_onlyHRTF'), exist_ok=True)
+    options = tf.io.TFRecordOptions(compression_type='GZIP')
+    writer = tf.io.TFRecordWriter('data/cochleagrams/uso_500ms_raw_hrtf_nh2_onlyHRTF/cochleagrams.tfrecord', options=options)
+
+    # Go through sounds in data/raw/uso_500ms_raw and apply the HRTFs
+    for sound_path in tqdm(Path('data/raw/uso_500ms_raw').glob('*.wav'), desc='Sounds', position=0):
+        sound = slab.Sound(sound_path)
+        padded_sound = zero_padding(sound, goal_duration=2, type="frontback")
+        for (azim, elev), hrtf in tqdm(hrtfs.items(), desc='HRTFs', position=1, leave=False):
+            # 20% chance to use this HRTF
+            if random.random() < 0.2:
+
+                hrtf_sound = hrtf.apply(padded_sound)
+                cochleagram = transform_stim_to_cochleagram(hrtf_sound)
+                # logger.info(cochleagram.min())
+                write_tfrecord(cochleagram,
+                               TrainingCoordinates(0,
+                                                   CartesianCoordinates(0, 0),
+                                                   SphericalCoordinates(azim, elev)),
+                               sound_path.name,
+                               writer)
 
 
 def generate_and_persist_cochleagrams_for_multiple_HRTFs():
@@ -107,6 +137,7 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
             for training_sample, training_coords in generate_training_samples_from_stim_path(config,
                                                                                              single_stim_path,
                                                                                              path_to_brirs=path_to_brirs):
+                # pass
                 write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
                 # inner_bar.update(1)
         # inner_bar.close()
@@ -210,13 +241,16 @@ def write_tfrecord(cochleagram, training_coords, stim_file_name: str, writer):
 
     """
     # TODO: Doesn't shuffle data
+    target = loc_to_CNNpos(training_coords.source_position.azim, training_coords.source_position.elev)
+
     data = {
         'train/image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
-        'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
-        'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
-        'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
-        'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev])),
-        'train/name': tf.train.Feature(bytes_list=tf.train.BytesList(value=[stim_file_name.encode('utf-8')]))
+        # 'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
+        # 'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
+        # 'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
+        # 'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev])),
+        'train/target': tf.train.Feature(int64_list=tf.train.Int64List(value=[target])),
+        # 'train/name': tf.train.Feature(bytes_list=tf.train.BytesList(value=[stim_file_name.encode('utf-8')]))
     }
 
     # write the single record into tfrecord file
@@ -341,7 +375,8 @@ def generate_training_locations(room_configs: List[RoomConfig], source_positions
         listener_positions = calculate_listener_positions(room.width, room.length)
         for listener_position in listener_positions:
             for source_position in source_positions:
-                if random.random() < (0.025 * nr_listener_positions_smallest_room) / len(listener_positions):
+                # if random.random() < (0.025 * nr_listener_positions_smallest_room) / len(listener_positions):
+                if random.random() < (0.2 * nr_listener_positions_smallest_room) / len(listener_positions):
                     # Normalization works: Rooms are equally represented
                     # Nr. of total locations is too big though 628k vs 545k in paper
                     yield TrainingCoordinates(room.id, listener_position, source_position)
@@ -387,22 +422,62 @@ def transform_stim_to_cochleagram(stim: slab.Binaural):
     """
     normalized_stim, sr = normalize_binaural_stim(stim.data, stim.samplerate)
     cochleagram = cochleagram_wrapper(normalized_stim)
+    # Downsample to 8kHz
+    # logger.info(type(cochleagram))
+    downsampled = downsample_hardcoded(cochleagram).numpy()
+    # logger.info(type(downsampled))
+
     # -> low subband index is low frequency band; plot cochleagrams them upside down
-    return cochleagram
+    return downsampled
 
     # print(cochleagram.shape, type(cochleagram))
     # downsampled = slab.Signal(cochleagram.T).resample(8000)
     # -> Doesn't work bc Signal() automatically transposes the cochleagram, assuming it's a <=2D signal
     # print(sp.signal.resample(cochleagram, 8000, axis=1).shape, type(sp.signal.resample(cochleagram, 8000, axis=1)))
-    downsampled = sp.signal.resample(cochleagram, 8000, axis=1)
+    # downsampled = sp.signal.resample(cochleagram, 8000, axis=1)
     # -> 0.031 per call, 12.315 tottime for 100 calls
     # downsampled = resample(cochleagram, 8000, 48000, axis=1, fc='nn')
     # -> hangs up when calling upfirdn
 
-    return downsampled
+    # return downsampled
     # Shape: (39, 48000, 2)
     # Downsample to: (39, 8000, 2)
     # TODO: Figure out dimension stuff; why is filter (1, filt_len, 2, 2)? What does stride=[1, 1, ds_ratio, 1] mean (the ones)?
+
+
+def make_downsample_filt_tensor_hardcoded():
+    downsample_filter_times = np.arange(-4097 / 2, int(4097 / 2))
+    downsample_filter_response_orig = np.sinc(downsample_filter_times / 6) / 6
+    downsample_filter_window = sp.signal.windows.kaiser(4097, 10.06)
+    downsample_filter_response = downsample_filter_window * downsample_filter_response_orig
+    downsample_filt_tensor = tf.constant(downsample_filter_response, tf.float32)
+    downsample_filt_tensor = tf.expand_dims(downsample_filt_tensor, 0)
+    downsample_filt_tensor = tf.expand_dims(downsample_filt_tensor, 2)
+    downsample_filt_tensor = tf.expand_dims(downsample_filt_tensor, 3)
+    return downsample_filt_tensor
+
+
+DS_KERNEL = make_downsample_filt_tensor_hardcoded()
+
+
+def downsample_hardcoded(signal):
+    [L_channel, R_channel] = tf.unstack(signal, axis=2)
+    concat_for_downsample = tf.concat([L_channel, R_channel], axis=0)
+    reshaped_for_downsample = tf.expand_dims(concat_for_downsample, axis=2)
+
+    signal = tf.expand_dims(reshaped_for_downsample, 0)
+    downsampled_signal = tf.nn.conv2d(signal, DS_KERNEL, strides=[1, 1, 6, 1], padding='SAME',
+                                      name='conv2d_cochleagram_raw')
+    downsampled_signal = tf.nn.relu(downsampled_signal)
+
+    downsampled_squeezed = tf.squeeze(downsampled_signal)
+    [L_channel_downsampled, R_channel_downsampled] = tf.split(downsampled_squeezed, num_or_size_splits=2, axis=0)
+    downsampled_reshaped = tf.stack([L_channel_downsampled, R_channel_downsampled], axis=2)
+    downsampled_signal = tf.pow(downsampled_reshaped, 0.3)
+
+    return downsampled_signal
+
+
 
 
 """
