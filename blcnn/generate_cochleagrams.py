@@ -35,7 +35,8 @@ logger.setLevel(logging.INFO)
 coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def main():
-    # generate_and_persist_cochleagrams_for_multiple_HRTFs()
+    generate_and_persist_cochleagrams_for_multiple_HRTFs()
+    sys.exit()
     hrtfs = dict()
     loaded_hrtf = slab.HRTF('data/hrtfs/hrtf_nh2.sofa', verbose=True)
     # loaded_hrtf = slab.HRTF.kemar()
@@ -205,7 +206,7 @@ def generate_training_samples_from_stim_path(config: Config,
     #     s.play()
     augmented_sounds = [raw_stim]
 
-    source_positions = generate_source_positions(config.generate_brirs.source_positions)
+    source_positions = generate_source_positions(config.generate_cochleagrams.source_positions)
     stim_generator = generate_spatialized_sound(augmented_sounds, config.generate_brirs.room_configs, source_positions, brir_dict=brir_dict, path_to_brirs=path_to_brirs)
 
     training_samples = []
@@ -306,9 +307,11 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
         # Render sound at different positions
         for training_coordinates in generate_training_locations(room_configs, source_positions):
             spatialized_sound = apply_brir(padded_sound, training_coordinates, brir_dict=brir_dict,
-                                           path_to_brirs=path_to_brirs)
+                                       path_to_brirs=path_to_brirs)
             # PBAR.update(1)
-            yield spatialized_sound, training_coordinates
+            if spatialized_sound is not None:
+                yield spatialized_sound, training_coordinates
+
 
 
 def create_background(room_id: int,
@@ -357,7 +360,8 @@ def create_background(room_id: int,
                                                              random_location),
                                          brir_dict=brir_dict,
                                          path_to_brirs=path_to_brirs)
-        background_textures.append(spatialized_texture)
+        if spatialized_texture is not None:
+            background_textures.append(spatialized_texture)
     # Need to supply starting sound for sum on which to add the textures
     summed_textures = sum(background_textures, start=slab.Sound(np.zeros_like(background_textures[0].data)))
     normalized_background = summed_textures * (0.99 / np.max(
@@ -385,7 +389,7 @@ def generate_training_locations(room_configs: List[RoomConfig], source_positions
 def apply_brir(sound: slab.Sound,
                training_coordinates: TrainingCoordinates,
                brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
-               path_to_brirs=None) -> slab.Signal:
+               path_to_brirs=None) -> slab.Signal | None:
     """
     Applies the BRIR to the given sound at the given training coordinates.
     If a BRIR dictionary is given, the BRIR is applied from the dictionary, otherwise it is calculated on the fly.
@@ -400,7 +404,12 @@ def apply_brir(sound: slab.Sound,
     """
     # switch case
     if path_to_brirs:
-        return Filter.load(Path(path_to_brirs, f'brir_{training_coordinates}.wav.npy')).apply(sound).trim(0.0, 2.0)
+        try:
+            return Filter.load(Path(path_to_brirs, f'brir_{training_coordinates}.wav.npy')).apply(sound).trim(0.0, 2.0)
+        except FileNotFoundError as e:
+            logger.warning(f'An error occurred during BRIR application: {e}\n'
+                           f'Probably the BRIR file for {training_coordinates} does not exist.')
+            return None
     elif brir_dict:
         # TODO: Handle if brir not in dict
         return brir_dict[training_coordinates].apply(sound).trim(0.0, 2.0)

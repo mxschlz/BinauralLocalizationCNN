@@ -66,6 +66,7 @@ class BRIRConfig:
 class CochleagramConfig:
     hrtf_labels: List[str]
     stim_paths: List[str]
+    source_positions: SourcePositionsConfig
     bkgd_path: str
     use_bkgd: bool
 
@@ -129,6 +130,10 @@ def load_config(file_path: str) -> Config:
         generate_cochleagrams=CochleagramConfig(
             hrtf_labels=raw_config['generate_cochleagrams']['hrtf_labels'],
             stim_paths=raw_config['generate_cochleagrams']['stim_paths'],
+            source_positions=SourcePositionsConfig(
+                azimuths=raw_config['generate_cochleagrams']['source_positions']['azimuth'],
+                elevations=raw_config['generate_cochleagrams']['source_positions']['elevation']
+            ),
             bkgd_path=raw_config['generate_cochleagrams']['bkgd_path'],
             use_bkgd=raw_config['generate_cochleagrams']['use_bkgd']
         ),
