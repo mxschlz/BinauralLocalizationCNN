@@ -10,7 +10,8 @@ import tensorflow as tf
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
-from blcnn.util import CNNpos_to_loc
+from blcnn.generate_cochleagrams import downsample_hardcoded
+from blcnn.util import CNNpos_to_loc, loc_to_CNNpos, get_unique_folder_name
 from persistent_cache import persistent_cache
 
 logger = logging.getLogger(__name__)
@@ -29,8 +30,8 @@ coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - 
 
 
 def main() -> None:
-    inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/uso_500ms_raw_slab_kemar_onlyHRTF/cochleagrams.tfrecord"))
-
+    # inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/train0_transformed/cochleagrams.tfrecord"))
+    transform_francl_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/testset_record_subset"))
 
 def inspect_data(path: Path):
     dataset = tf.data.TFRecordDataset(path, compression_type="GZIP")
@@ -132,6 +133,42 @@ def extract_elev_azim(dataset: tf.data.TFRecordDataset) -> (List, List):
         elevs.append(elev)
         azims.append(azim)
     return elevs, azims
+
+
+def transform_francl_data(path: Path):
+    # Tested: Elev and azim are correctly preserved. Cochs untested but later pipeline should be same as original one.
+    dest = Path('data/cochleagrams/francl_data_transformed_concatenated')
+    dest.mkdir(parents=True, exist_ok=True)
+    options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
+    writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
+
+    feature_description = {
+        'train/image': tf.io.FixedLenFeature([], tf.string),
+        'train/image_height': tf.io.FixedLenFeature([], tf.int64),
+        'train/image_width': tf.io.FixedLenFeature([], tf.int64),
+        'train/azim': tf.io.FixedLenFeature([], tf.int64),
+        'train/elev': tf.io.FixedLenFeature([], tf.int64),
+    }
+
+    # go through files in folder
+    for file in path.iterdir():
+        if file.is_file() and file.suffix == '.tfrecords':
+            dataset = tf.data.TFRecordDataset(file, compression_type="GZIP")
+            for raw_record in tqdm(dataset, desc='Transforming data'):
+                example = tf.io.parse_single_example(raw_record, feature_description)
+                example['train/image'] = tf.reshape(tf.io.decode_raw(example['train/image'], tf.float32), (39, 48000, 2))
+
+                target = loc_to_CNNpos(example['train/azim'], example['train/elev'])
+                cochleagram = example['train/image']
+                downsampled_cochleagram = downsample_hardcoded(cochleagram).numpy()
+
+                data = {
+                    'train/image': tf.train.Feature(
+                        bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(downsampled_cochleagram.tobytes())])),
+                    'train/target': tf.train.Feature(int64_list=tf.train.Int64List(value=[target])),
+                }
+                example = tf.train.Example(features=tf.train.Features(feature=data))
+                writer.write(example.SerializeToString())
 
 
 def print_pprint(*args, **kwargs):
