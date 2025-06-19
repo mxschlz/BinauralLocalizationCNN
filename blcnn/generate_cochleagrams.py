@@ -9,6 +9,7 @@ import random
 import sys
 import time
 import traceback
+from functools import lru_cache
 from pathlib import Path
 from typing import List, Dict, Generator, Tuple
 from time import strftime
@@ -34,39 +35,9 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+
 def main():
     generate_and_persist_cochleagrams_for_multiple_HRTFs()
-    sys.exit()
-    hrtfs = dict()
-    loaded_hrtf = slab.HRTF('data/hrtfs/hrtf_nh2.sofa', verbose=True)
-    # loaded_hrtf = slab.HRTF.kemar()
-
-    for elev in range(0, 61, 10):
-        for azim in range(0, 356, 5):
-            hrtf = loaded_hrtf.interpolate(azim, elev).resample(48000)
-            hrtfs[(azim, elev)] = hrtf
-
-    Path.mkdir(Path('data/cochleagrams/uso_500ms_raw_hrtf_nh2_onlyHRTF'), exist_ok=True)
-    options = tf.io.TFRecordOptions(compression_type='GZIP')
-    writer = tf.io.TFRecordWriter('data/cochleagrams/uso_500ms_raw_hrtf_nh2_onlyHRTF/cochleagrams.tfrecord', options=options)
-
-    # Go through sounds in data/raw/uso_500ms_raw and apply the HRTFs
-    for sound_path in tqdm(Path('data/raw/uso_500ms_raw').glob('*.wav'), desc='Sounds', position=0):
-        sound = slab.Sound(sound_path)
-        padded_sound = zero_padding(sound, goal_duration=2, type="frontback")
-        for (azim, elev), hrtf in tqdm(hrtfs.items(), desc='HRTFs', position=1, leave=False):
-            # 20% chance to use this HRTF
-            if random.random() < 0.2:
-
-                hrtf_sound = hrtf.apply(padded_sound)
-                cochleagram = transform_stim_to_cochleagram(hrtf_sound)
-                # logger.info(cochleagram.min())
-                write_tfrecord(cochleagram,
-                               TrainingCoordinates(0,
-                                                   CartesianCoordinates(0, 0),
-                                                   SphericalCoordinates(azim, elev)),
-                               sound_path.name,
-                               writer)
 
 
 def generate_and_persist_cochleagrams_for_multiple_HRTFs():
@@ -84,7 +55,8 @@ def generate_and_persist_cochleagrams_for_multiple_HRTFs():
             logger.error(f'BRIRs for the HRTF {hrtf_path} specified in config.yml do not exist. Exiting...')
             sys.exit(1)
 
-    inputs = [c for c in itertools.product(config.generate_cochleagrams.stim_paths, config.generate_cochleagrams.hrtf_labels)]
+    inputs = [c for c in
+              itertools.product(config.generate_cochleagrams.stim_paths, config.generate_cochleagrams.hrtf_labels)]
     logger.info(f'Found the following combinations of inputs for cochleagram generation:\n{inputs}')
     for stim_path, hrtf_label in inputs:
         generate_cochleagrams(config, Path(stim_path), hrtf_label)
@@ -96,7 +68,10 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
     start_time = time.time()
     timestamp = strftime("%Y-%m-%d_%H-%M-%S")
 
-    dest = get_unique_folder_name(f'data/cochleagrams/{stim_path.stem}_{hrtf_label}/')
+    if config.generate_cochleagrams.anechoic:
+        dest = get_unique_folder_name(f'data/cochleagrams/{stim_path.stem}_{hrtf_label}_anechoic/')
+    else:
+        dest = get_unique_folder_name(f'data/cochleagrams/{stim_path.stem}_{hrtf_label}/')
     Path(dest).mkdir(parents=True, exist_ok=False)
 
     # Resample background sounds to 48kHz
@@ -133,13 +108,19 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
         ##### Sequential #####
         # global inner_bar
         # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
-        for single_stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths', total=len(stim_paths)):
-            for training_sample, training_coords in generate_training_samples_from_stim_path(config,
-                                                                                             single_stim_path,
-                                                                                             path_to_brirs=path_to_brirs):
-                # pass
-                write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
-                # inner_bar.update(1)
+        for single_stim_path in tqdm(stim_paths, desc='Processed stim paths', position=0, unit='paths',
+                                     total=len(stim_paths)):
+            if config.generate_cochleagrams.anechoic:
+                for training_sample, training_coords in generate_training_sample_from_stim_path_anechoic(config,
+                                                                                                         single_stim_path,
+                                                                                                         hrtf_label):
+                    write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
+            else:
+                for training_sample, training_coords in generate_training_samples_from_stim_path(config,
+                                                                                                 single_stim_path,
+                                                                                                 path_to_brirs=path_to_brirs):
+                    write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
+                    # inner_bar.update(1)
         # inner_bar.close()
     except Exception as e:
         logger.error(f'An error occurred during BRIR generation: {e}\n'
@@ -175,7 +156,7 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'Based on the following BRIR generation:\n' \
               f'{brir_summary}\n\n' \
               f'################################\n' \
-              f'Results saved to: {dest}\n' \
+              f'Cochleagrams saved to: {dest}\n' \
               f'################################\n'
     return summary
 
@@ -208,7 +189,8 @@ def generate_training_samples_from_stim_path(config: Config,
     augmented_sounds = [raw_stim]
 
     source_positions = generate_source_positions(config.generate_cochleagrams.source_positions)
-    stim_generator = generate_spatialized_sound(augmented_sounds, config.generate_brirs.room_configs, source_positions, brir_dict=brir_dict, path_to_brirs=path_to_brirs)
+    stim_generator = generate_spatialized_sound(augmented_sounds, config.generate_brirs.room_configs, source_positions,
+                                                brir_dict=brir_dict, path_to_brirs=path_to_brirs)
 
     training_samples = []
     # worker_nr = int(multiprocessing.current_process().name.split('-')[-1])
@@ -231,6 +213,45 @@ def generate_training_samples_from_stim_path(config: Config,
     return training_samples
 
 
+def generate_training_sample_from_stim_path_anechoic(config: Config, stim_path: Path, hrtf_label: str):
+    src_positions = [c for c in itertools.product(config.generate_cochleagrams.source_positions.azimuths,
+                                                  config.generate_cochleagrams.source_positions.elevations)]
+
+    # Go through sounds in data/raw/uso_500ms_raw and apply the HRTFs
+    # for sound_path in tqdm(Path('data/raw/uso_500ms_raw').glob('*.wav'), desc='Sounds', position=0):
+    sound = slab.Sound(stim_path).resample(48000)
+    padded_sound = zero_padding(sound, goal_duration=2, type="frontback")
+    training_samples = []
+    for (azim, elev) in tqdm(src_positions, desc='HRTFs', position=1, leave=False):
+        # 20% chance to use this HRTF
+        if random.random() <= 1.0:
+            hrtf_sound = interpolate_HRTF(hrtf_label, azim, elev).apply(padded_sound)
+            cochleagram = transform_stim_to_cochleagram(hrtf_sound)
+            training_samples.append(
+                (cochleagram, TrainingCoordinates(0, CartesianCoordinates(0, 0), SphericalCoordinates(azim, elev))))
+        print(interpolate_HRTF.cache_info(), hrtf_label, azim, elev, end='\r')
+    return training_samples
+
+
+# Cache useful bc the same HRTF set is used multiple times for different sounds
+# -> Takes almost same time as without cache...
+@lru_cache(maxsize=550)
+def interpolate_HRTF(hrtf_label: str, azim: int, elev: int) -> slab.Filter:
+    """
+    Interpolates the HRTF at the given azimuth and elevation.
+    Cached to avoid multiple interpolations with the same parameters.
+    Args:
+        hrtf_label: Label of the HRTF
+        azim: Azimuth
+        elev: Elevation
+    """
+    if hrtf_label == 'slab_kemar':
+        loaded_hrtf = slab.HRTF.kemar()
+    else:
+        loaded_hrtf = slab.HRTF(f'data/hrtfs/{hrtf_label}.sofa', verbose=True)
+    return loaded_hrtf.interpolate(azim, elev).resample(48000)
+
+
 def write_tfrecord(cochleagram, training_coords, stim_file_name: str, writer):
     """
     Write a training sample to a tfrecord file
@@ -246,7 +267,8 @@ def write_tfrecord(cochleagram, training_coords, stim_file_name: str, writer):
     target = loc_to_CNNpos(training_coords.source_position.azim, training_coords.source_position.elev)
 
     data = {
-        'train/image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
+        'train/image': tf.train.Feature(
+            bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
         # 'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
         # 'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
         # 'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
@@ -308,11 +330,10 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
         # Render sound at different positions
         for training_coordinates in generate_training_locations(room_configs, source_positions):
             spatialized_sound = apply_brir(padded_sound, training_coordinates, brir_dict=brir_dict,
-                                       path_to_brirs=path_to_brirs)
+                                           path_to_brirs=path_to_brirs)
             # PBAR.update(1)
             if spatialized_sound is not None:
                 yield spatialized_sound, training_coordinates
-
 
 
 def create_background(room_id: int,
@@ -370,18 +391,20 @@ def create_background(room_id: int,
     return normalized_background
 
 
-def generate_training_locations(room_configs: List[RoomConfig], source_positions:  List[SphericalCoordinates]) -> Generator[TrainingCoordinates, None, None]:
+def generate_training_locations(room_configs: List[RoomConfig], source_positions: List[SphericalCoordinates]) -> \
+Generator[TrainingCoordinates, None, None]:
     #  Dict[int, RoomConfig]
     nr_listener_positions_smallest_room = min(
         [len(calculate_listener_positions(room.width, room.length)) for room in room_configs])
 
     # for augmented_sound in tqdm(range(2492)):  # ca. 31s for 2492 locations (for one sound)
     for room in room_configs:
-        listener_positions = calculate_listener_positions(room.width, room.length)
-        for listener_position in listener_positions:
+        listener_positions_current_room = calculate_listener_positions(room.width, room.length)
+        for listener_position in listener_positions_current_room:
             for source_position in source_positions:
                 # if random.random() < (0.025 * nr_listener_positions_smallest_room) / len(listener_positions):
-                if random.random() < (0.2 * nr_listener_positions_smallest_room) / len(listener_positions):
+                # if random.random() < (0.2 * nr_listener_positions_smallest_room) / len(listener_positions_current_room):
+                if random.random() < (0.05 * nr_listener_positions_smallest_room) / len(listener_positions_current_room):
                     # Normalization works: Rooms are equally represented
                     # Nr. of total locations is too big though 628k vs 545k in paper
                     yield TrainingCoordinates(room.id, listener_position, source_position)
@@ -486,8 +509,6 @@ def downsample_hardcoded(signal):
     downsampled_signal = tf.pow(downsampled_reshaped, 0.3)
 
     return downsampled_signal
-
-
 
 
 """

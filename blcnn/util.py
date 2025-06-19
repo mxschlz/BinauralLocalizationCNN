@@ -69,6 +69,7 @@ class CochleagramConfig:
     source_positions: SourcePositionsConfig
     bkgd_path: str
     use_bkgd: bool
+    anechoic: bool
 
 
 @dataclass
@@ -114,8 +115,8 @@ def load_config(file_path: str) -> Config:
         generate_brirs=BRIRConfig(
             hrtfs=raw_config['generate_brirs']['hrtfs'],
             source_positions=SourcePositionsConfig(
-                azimuths=raw_config['generate_brirs']['source_positions']['azimuth'],
-                elevations=raw_config['generate_brirs']['source_positions']['elevation']
+                azimuths=raw_config['generate_brirs']['source_positions']['azimuths'],
+                elevations=raw_config['generate_brirs']['source_positions']['elevations']
             ),
             room_configs=[
                 RoomConfig(
@@ -131,11 +132,12 @@ def load_config(file_path: str) -> Config:
             hrtf_labels=raw_config['generate_cochleagrams']['hrtf_labels'],
             stim_paths=raw_config['generate_cochleagrams']['stim_paths'],
             source_positions=SourcePositionsConfig(
-                azimuths=raw_config['generate_cochleagrams']['source_positions']['azimuth'],
-                elevations=raw_config['generate_cochleagrams']['source_positions']['elevation']
+                azimuths=raw_config['generate_cochleagrams']['source_positions']['azimuths'],
+                elevations=raw_config['generate_cochleagrams']['source_positions']['elevations']
             ),
             bkgd_path=raw_config['generate_cochleagrams']['bkgd_path'],
-            use_bkgd=raw_config['generate_cochleagrams']['use_bkgd']
+            use_bkgd=raw_config['generate_cochleagrams']['use_bkgd'],
+            anechoic=raw_config['generate_cochleagrams']['anechoic']
         ),
         run_models=RunModelsConfig(
             labels=raw_config['run_models']['labels'],
