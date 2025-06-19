@@ -1,4 +1,5 @@
 import logging
+import sys
 from pathlib import Path
 
 import coloredlogs
@@ -8,7 +9,7 @@ from net_builder import create_model
 
 logger = tf.get_logger()
 logger.setLevel(logging.DEBUG)
-coloredlogs.install(level='INFO', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 def main() -> None:

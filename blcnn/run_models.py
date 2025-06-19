@@ -124,7 +124,7 @@ def summarize_testing(run_models_config: RunModelsConfig, path_to_cochleagrams: 
               f'Based on the following cochleagram generation:\n' \
               f'{cochleagram_summary}\n\n' \
               f'################################\n' \
-              f'Results saved to: {dest}\n' \
+              f'Inference results saved to: {dest}\n' \
               f'################################\n'
     return summary
 
