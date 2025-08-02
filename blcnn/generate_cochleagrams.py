@@ -23,10 +23,10 @@ from tqdm import tqdm
 import tensorflow as tf
 
 from util import get_unique_folder_name, load_config, CochleagramConfig, Config, SourcePositionsConfig, loc_to_CNNpos
-from legacy.CNN_preproc import cochleagram_wrapper
+from legacy_util import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
     CartesianCoordinates, generate_source_positions, SphericalCoordinates
-from legacy.stim_util import zero_padding, normalize_binaural_stim
+from legacy_util import zero_padding, normalize_binaural_stim
 
 # Needed bc there's a bug in slab.Signal's add method that doesn't preserve the samplerate
 slab.Signal.set_default_samplerate(48000)
