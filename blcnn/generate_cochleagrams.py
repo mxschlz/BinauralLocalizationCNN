@@ -89,6 +89,8 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
     writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
 
+    total_samples = 0
+
     try:
         ##### Parallel #####
         # nr_workers = multiprocessing.cpu_count()
@@ -115,11 +117,13 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
                                                                                                          single_stim_path,
                                                                                                          hrtf_label):
                     write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
+                    total_samples += 1
             else:
                 for training_sample, training_coords in generate_training_samples_from_stim_path(config,
                                                                                                  single_stim_path,
                                                                                                  path_to_brirs=path_to_brirs):
                     write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
+                    total_samples += 1
                     # inner_bar.update(1)
         # inner_bar.close()
     except Exception as e:
@@ -129,7 +133,7 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
         writer.close()
 
         elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
-        summary = summarize_cochleagram_generation_info(cochleagram_config, hrtf_label, timestamp, elapsed_time, dest)
+        summary = summarize_cochleagram_generation_info(cochleagram_config, hrtf_label, timestamp, elapsed_time, dest, total_samples)
         logger.info(summary)
         with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
             f.write(summary)
@@ -139,7 +143,8 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
                                           hrtf_label: str,
                                           timestamp: str,
                                           elapsed_time: str,
-                                          dest: Path) -> str:
+                                          dest: Path,
+                                          total_samples: int) -> str:
     # Load BRIR summary
     path_to_brirs = Path(f'data/brirs/{hrtf_label}')
     with open(glob.glob((path_to_brirs / '_summary_*.txt').as_posix())[0], 'r') as f:
@@ -152,6 +157,7 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
               f'Number of Stimuli found (only if a single folder is specified): {len(list(glob.glob(f"{cochleagram_config.stim_paths}/*.wav")))}\n' \
               f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
+              f'Number of cochleagrams generated: {total_samples}\n\n' \
               f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
               f'{brir_summary}\n\n' \
