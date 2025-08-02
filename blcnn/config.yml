@@ -19,16 +19,16 @@ generate_brirs:
   # Source positions and room configs taken from McDermott's paper
   source_positions:  # Includes stop value
     # Azimuth starts at 0 in front and wraps clockwise around the listener
-#    azimuth: [  0,   5,  10,  15,  20,  25,  30,  35,  40,  45,  50,  55,  60,  65,  70,  75,  80,  85,
+#    azimuths: [  0,   5,  10,  15,  20,  25,  30,  35,  40,  45,  50,  55,  60,  65,  70,  75,  80,  85,
 #               90,  95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175,
 #              180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265,
 #              270, 275, 280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350, 355]
 
     # front 180 degrees in 10 degree steps:
-#    azimuth: [  0,  10,  20,  30,  40,  50,  60,  70,  80, 90,
+#    azimuths: [  0,  10,  20,  30,  40,  50,  60,  70,  80, 90,
 #              270, 280, 290, 300, 310, 320, 330, 340, 350]
-    azimuth: [0, 30]
-    elevation: [0, 10, 20, 30, 40, 50, 60]
+    azimuths: [0, 30]
+    elevations: [0, 10, 20, 30, 40, 50, 60]
   room_configs:
     - {id: 1, width: 9, length: 9, height: 10}
     - {id: 2, width: 4, length: 5, height: 3}  # height from 2m to 3m bc src out of bounds
@@ -42,19 +42,26 @@ generate_brirs:
 # stim and bkgd must be folders with .wav files
 generate_cochleagrams:
   hrtf_labels:  # Which BRIR sets from the generate_brirs.py output to use, only name without extension
-    - slab_kemar
-#    - hrtf_nh2
+#    - slab_kemar
+    - hrtf_nh2
   stim_paths:  # List of paths to stim folders. Generates cochleagrams for all hrtf and stim path combinations
-    - data/raw/uso_500ms_raw
+#    - data/raw/uso_500ms_raw
+    - data/raw/naturalsounds165
 #    - data/raw/tones/flute
 #    - data/raw/tones/harmoniccomplex
 #    - data/raw/tones/viola
 #    - data/raw/tones/viola_complex
   source_positions:  # Which source positions to use. Positions must be in the generated BRIRs, otherwise they're skipped.
-    azimuth: [0]
-    elevation: [0, 10, 20, 30, 40, 50, 60]
+    azimuths: [  0,   5,  10,  15,  20,  25,  30,  35,  40,  45,  50,  55,  60,  65,  70,  75,  80,  85,
+               90,  95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, 165, 170, 175,
+              180, 185, 190, 195, 200, 205, 210, 215, 220, 225, 230, 235, 240, 245, 250, 255, 260, 265,
+              270, 275, 280, 285, 290, 295, 300, 305, 310, 315, 320, 325, 330, 335, 340, 345, 350, 355]
+    elevations: [0, 10, 20, 30, 40, 50, 60]
+#    azimuths: [0, 30]  # front 180 degrees in 10 degree steps
+#    elevations: [0, 10]
   bkgd_path: data/raw/McDermott_Simoncelli_2011_168_Sound_Textures_48kHz
   use_bkgd: false
+  anechoic: false  # If true, ignores BRIRs and uses anechoic HRTFs
 
 # Configuration for run_models.py
 run_models:
@@ -64,8 +71,11 @@ run_models:
 #    - harmoniccomplex_slab_kemar
 #    - viola_complex_slab_kemar
 #    - viola_slab_kemar
-    - uso_500ms_raw_hrtf_nh2_onlyHRTF
-  models_to_use: [1]
+#    - uso_500ms_raw_slab_kemar_anechoic
+#    - francl_data_transformed_concatenated
+#    - naturalsounds165_slab_kemar
+    - naturalsounds165_hrtf_nh2
+  models_to_use: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 
 # Configuration for plotting.py
@@ -74,16 +84,19 @@ plotting:
 #    - slab_kemar
 #    - hrtf_nh2
   labels: # <hrtf_label>_<stim_path>  Which runs to plot
-    - slab_kemar
-    - hrtf_nh2
+#    - slab_kemar
+#    - hrtf_nh2
 #    - flute_slab_kemar
 #    - harmoniccomplex_slab_kemar
 #    - viola_complex_slab_kemar
 #    - viola_slab_kemar
-    - uso_500ms_raw_hrtf_nh2_onlyHRTF
+#    - uso_500ms_raw_slab_kemar_anechoic
+#    - francl_data_transformed_concatenated
+    - naturalsounds165_slab_kemar
+    - naturalsounds165_hrtf_nh2
   data_selection: 'all'  # front, back, all
   folded: true
-  binned: true
+  binned: false
   nr_elevation_bins: 11  # No effect if binned is false
 #  nr_elevation_bins: 6  # No effect if binned is false
   nr_azimuth_bins: 13  # No effect if binned is false
