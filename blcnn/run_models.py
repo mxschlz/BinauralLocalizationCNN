@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from util import get_unique_folder_name, load_config, RunModelsConfig
 from net_builder import single_example_parser
+from mem_usage import get_model_memory_usage
 
 logger = tf.get_logger()
 logger.setLevel(logging.INFO)
@@ -73,7 +74,18 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
 
     model = keras.models.load_model(model_path)
 
-    nr_examples = sum(1 for _ in tqdm(tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP"), unit='examples', desc='Counting examples'))
+    total_samples = None
+    file_name = glob.glob((path_to_cochleagrams / '_summary_*.txt').as_posix())[0]
+    for line in open(file_name, 'r'):
+        if 'Number of cochleagrams generated:' in line:
+            total_samples = int(line.split(': ')[1].strip())
+            break
+    if total_samples:
+        nr_examples = total_samples
+    else:  # Legacy for older data that doesn't have the summary file
+        nr_examples = sum(1 for _ in tqdm(tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP"), unit='examples', desc='Counting examples'))
+
+
     # nr_examples = tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP").reduce(np.int64(0), lambda x, _: x + 1)
     logger.info(f'Number of examples in dataset: {nr_examples}')
 
