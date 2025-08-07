@@ -176,8 +176,8 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
               f'Number of Stimuli found (only if a single folder is specified): {len(list(glob.glob(f"{cochleagram_config.stim_paths}/*.wav")))}\n' \
               f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
-              f'Train dataset size: {train_samples} cochleagrams\n\n' \
-              f'Test dataset size: {test_samples} cochleagrams\n\n' \
+              f'Train dataset size (nr of cochleagrams): {train_samples}\n\n' \
+              f'Test dataset size (nr of cochleagrams): {test_samples}\n\n' \
               f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
               f'{brir_summary}\n\n' \
