@@ -70,6 +70,8 @@ class CochleagramConfig:
     bkgd_path: str
     use_bkgd: bool
     anechoic: bool
+    train_test_split: float
+    generation_base_probability: float
 
 
 @dataclass
@@ -137,7 +139,9 @@ def load_config(file_path: str) -> Config:
             ),
             bkgd_path=raw_config['generate_cochleagrams']['bkgd_path'],
             use_bkgd=raw_config['generate_cochleagrams']['use_bkgd'],
-            anechoic=raw_config['generate_cochleagrams']['anechoic']
+            anechoic=raw_config['generate_cochleagrams']['anechoic'],
+            train_test_split=raw_config['generate_cochleagrams']['train_test_split'],
+            generation_base_probability= raw_config['generate_cochleagrams']['generation_base_probability']
         ),
         run_models=RunModelsConfig(
             labels=raw_config['run_models']['labels'],

@@ -87,9 +87,12 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
     path_to_brirs = Path(f'data/brirs/{hrtf_label}')
 
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
-    writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
+    train_writer = tf.io.TFRecordWriter((dest / 'train_cochleagrams.tfrecord').as_posix(), options=options)
+    test_writer = tf.io.TFRecordWriter((dest / 'test_cochleagrams.tfrecord').as_posix(), options=options)
+    split = 0.8  # 80% train, 20% test
 
-    total_samples = 0
+    train_samples = 0
+    test_samples = 0
 
     try:
         ##### Parallel #####
@@ -116,24 +119,34 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
                 for training_sample, training_coords in generate_training_sample_from_stim_path_anechoic(config,
                                                                                                          single_stim_path,
                                                                                                          hrtf_label):
-                    write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
-                    total_samples += 1
+                    if random.random() < split:
+                        write_tfrecord(training_sample, training_coords, single_stim_path.name, train_writer)
+                        train_samples += 1
+                    else:
+                        write_tfrecord(training_sample, training_coords, single_stim_path.name, test_writer)
+                        test_samples += 1
             else:
                 for training_sample, training_coords in generate_training_samples_from_stim_path(config,
                                                                                                  single_stim_path,
                                                                                                  path_to_brirs=path_to_brirs):
-                    write_tfrecord(training_sample, training_coords, single_stim_path.name, writer)
-                    total_samples += 1
+                    if random.random() < split:
+                        write_tfrecord(training_sample, training_coords, single_stim_path.name, train_writer)
+                        train_samples += 1
+                    else:
+                        write_tfrecord(training_sample, training_coords, single_stim_path.name, test_writer)
+                        test_samples += 1
                     # inner_bar.update(1)
         # inner_bar.close()
     except Exception as e:
         logger.error(f'An error occurred during BRIR generation: {e}\n'
                      f'{traceback.print_exc()}')
     finally:
-        writer.close()
+        train_writer.close()
+        test_writer.close()
 
         elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
-        summary = summarize_cochleagram_generation_info(cochleagram_config, hrtf_label, timestamp, elapsed_time, dest, total_samples)
+        summary = summarize_cochleagram_generation_info(cochleagram_config, hrtf_label, timestamp, elapsed_time, dest,
+                                                        train_samples, test_samples)
         logger.info(summary)
         with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
             f.write(summary)
@@ -144,7 +157,8 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
                                           timestamp: str,
                                           elapsed_time: str,
                                           dest: Path,
-                                          total_samples: int) -> str:
+                                          train_samples: int,
+                                          test_samples: int) -> str:
     # Load BRIR summary
     path_to_brirs = Path(f'data/brirs/{hrtf_label}')
     with open(glob.glob((path_to_brirs / '_summary_*.txt').as_posix())[0], 'r') as f:
@@ -157,7 +171,8 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
               f'Number of Stimuli found (only if a single folder is specified): {len(list(glob.glob(f"{cochleagram_config.stim_paths}/*.wav")))}\n' \
               f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
-              f'Number of cochleagrams generated: {total_samples}\n\n' \
+              f'Train dataset size: {train_samples} cochleagrams\n\n' \
+              f'Test dataset size: {test_samples} cochleagrams\n\n' \
               f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
               f'{brir_summary}\n\n' \
@@ -196,7 +211,8 @@ def generate_training_samples_from_stim_path(config: Config,
 
     source_positions = generate_source_positions(config.generate_cochleagrams.source_positions)
     stim_generator = generate_spatialized_sound(augmented_sounds, config.generate_brirs.room_configs, source_positions,
-                                                brir_dict=brir_dict, path_to_brirs=path_to_brirs)
+                                                brir_dict=brir_dict, path_to_brirs=path_to_brirs,
+                                                generation_base_probability=config.generate_cochleagrams.generation_base_probability)
 
     training_samples = []
     # worker_nr = int(multiprocessing.current_process().name.split('-')[-1])
@@ -320,7 +336,8 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
                                room_configs: List[RoomConfig],
                                source_positions: List[SphericalCoordinates],
                                brir_dict: Dict[TrainingCoordinates, slab.Filter] = None,
-                               path_to_brirs: Path = None) -> Generator[
+                               path_to_brirs: Path = None,
+                               generation_base_probability: float = 0.05) -> Generator[
     Tuple[slab.Sound, TrainingCoordinates], None, None]:
     """
     - sound generator
@@ -334,7 +351,8 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
     for sound in sounds:
         padded_sound = zero_padding(sound, goal_duration=2, type="frontback")
         # Render sound at different positions
-        for training_coordinates in generate_training_locations(room_configs, source_positions):
+        for training_coordinates in generate_training_locations(room_configs, source_positions,
+                                                                generation_base_probability):
             spatialized_sound = apply_brir(padded_sound, training_coordinates, brir_dict=brir_dict,
                                            path_to_brirs=path_to_brirs)
             # PBAR.update(1)
@@ -397,8 +415,8 @@ def create_background(room_id: int,
     return normalized_background
 
 
-def generate_training_locations(room_configs: List[RoomConfig], source_positions: List[SphericalCoordinates]) -> \
-Generator[TrainingCoordinates, None, None]:
+def generate_training_locations(room_configs: List[RoomConfig], source_positions: List[SphericalCoordinates],
+                                generation_base_probability: float) -> Generator[TrainingCoordinates, None, None]:
     #  Dict[int, RoomConfig]
     nr_listener_positions_smallest_room = min(
         [len(calculate_listener_positions(room.width, room.length)) for room in room_configs])
@@ -408,9 +426,8 @@ Generator[TrainingCoordinates, None, None]:
         listener_positions_current_room = calculate_listener_positions(room.width, room.length)
         for listener_position in listener_positions_current_room:
             for source_position in source_positions:
-                # if random.random() < (0.025 * nr_listener_positions_smallest_room) / len(listener_positions):
-                # if random.random() < (0.2 * nr_listener_positions_smallest_room) / len(listener_positions_current_room):
-                if random.random() < (0.05 * nr_listener_positions_smallest_room) / len(listener_positions_current_room):
+                if random.random() < (generation_base_probability * nr_listener_positions_smallest_room) / len(
+                        listener_positions_current_room):
                     # Normalization works: Rooms are equally represented
                     # Nr. of total locations is too big though 628k vs 545k in paper
                     yield TrainingCoordinates(room.id, listener_position, source_position)
