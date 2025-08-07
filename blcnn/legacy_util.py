@@ -3,13 +3,15 @@ Contains copies of legacy functions that are used in the new codebase.
 """
 import sys
 import numpy as np
+
+# Add pycochleagram to the path
+sys.path.append('./pycochleagram')
+
 from pycochleagram import cochleagram as cgm
 from pycochleagram import utils as utl
 import slab
 from nnresample import resample
 
-# Add pycochleagram to the path
-sys.path.append('./pycochleagram')
 
 # cochleagram
 # NOTE: parameters signal_rate, coch_freq_lims, final_stim_length should NOT be changed to match the required model
