@@ -178,19 +178,19 @@ def retraining_run(ngram: list, path_to_model: Path, path_to_cochleagrams: Path,
     # dest = Path(f'data/output/freeze_trained_{timestamp}')
     ngram_repr = '_'.join(str(layer_id) for layer_id in ngram)
 
-    # # Logging
-    # log_path = dest / 'logs'
-    # log_path.mkdir(parents=True, exist_ok=True)
-    # # Log directory should include: [hrtf label] / [network ID, trainable layers, (timestamp)}
-    # log_dir = log_path / ngram_repr
-    # tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(log_dir), histogram_freq=1, update_freq=1000)
-    #
-    # # Train the model
-    # model.fit(train_dataset, epochs=1, callbacks=[tensorboard_callback], verbose=1,
-    #           steps_per_epoch=dataset_length // 16)
-    #
-    # # Save the model
-    # model.save(dest / f'net1_{ngram_repr}.keras')
+    # Logging
+    log_path = dest / 'logs'
+    log_path.mkdir(parents=True, exist_ok=True)
+    # Log directory should include: [hrtf label] / [network ID, trainable layers, (timestamp)}
+    log_dir = log_path / ngram_repr
+    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=str(log_dir), histogram_freq=1, update_freq=1000)
+
+    # Train the model
+    model.fit(train_dataset, epochs=1, callbacks=[tensorboard_callback], verbose=1,
+              steps_per_epoch=dataset_length // 16)
+
+    # Save the model
+    model.save(dest / f'net1_{ngram_repr}.keras')
 
     elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time_single_run))
     with open(dest / f'elapsed_time_per_run.txt', 'a') as f:
