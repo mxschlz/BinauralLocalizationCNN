@@ -22,6 +22,8 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
+sys.path.append('./blcnn')  # Add pycochleagram to the path
+
 from util import get_unique_folder_name, load_config, CochleagramConfig, Config, SourcePositionsConfig, loc_to_CNNpos
 from legacy_util import cochleagram_wrapper
 from generate_brirs import TrainingCoordinates, run_brir_sim, RoomConfig, calculate_listener_positions, \
