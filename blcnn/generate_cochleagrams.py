@@ -22,7 +22,10 @@ from slab import Filter
 from tqdm import tqdm
 import tensorflow as tf
 
-sys.path.append('./blcnn')  # Add pycochleagram to the path
+# Add 'blcnn' to the Python path
+blcnn_path = os.path.abspath('./blcnn')
+if blcnn_path not in sys.path:
+    sys.path.append(blcnn_path)
 
 from util import get_unique_folder_name, load_config, CochleagramConfig, Config, SourcePositionsConfig, loc_to_CNNpos
 from legacy_util import cochleagram_wrapper

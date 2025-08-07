@@ -2,10 +2,13 @@
 Contains copies of legacy functions that are used in the new codebase.
 """
 import sys
+import os
 import numpy as np
 
-# Add pycochleagram to the path
-sys.path.append('./pycochleagram')
+# Add 'pycochleagram' to the Python path
+pycochleagram_path = os.path.abspath('./pycochleagram')
+if pycochleagram_path not in sys.path:
+    sys.path.append(pycochleagram_path)
 
 from pycochleagram import cochleagram as cgm
 from pycochleagram import utils as utl
