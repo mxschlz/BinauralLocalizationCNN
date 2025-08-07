@@ -65,6 +65,11 @@ generate_cochleagrams:
   train_test_split: 0.8  # Ratio of training to test cochleagrams, 0.8 means 80% training, 20% test
   generation_base_probability: 0.05  # Probability of generating a cochleagram for a given source position, 0.05 means 5% chance
 
+freeze_training:
+  labels:  # For now only uses first label given in this list
+    - naturalsounds165_hrtf_nh2
+  models_to_use: [1]  # For now only uses first model given in this list
+
 # Configuration for run_models.py
 run_models:
   labels: # <stim_path>_<hrtf_label> -> Which cochleagram sets from the generate_cochleagrams.py output to use, only name without extension

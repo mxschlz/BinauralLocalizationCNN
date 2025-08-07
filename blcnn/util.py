@@ -75,6 +75,12 @@ class CochleagramConfig:
 
 
 @dataclass
+class FreezeTrainingConfig:
+    labels: List[str]
+    models_to_use: List[int]
+
+
+@dataclass
 class RunModelsConfig:
     labels: List[str]
     models_to_use: List[int]
@@ -96,6 +102,7 @@ class PlottingConfig:
 class Config:
     generate_brirs: BRIRConfig
     generate_cochleagrams: CochleagramConfig
+    freeze_training: FreezeTrainingConfig
     run_models: RunModelsConfig
     plotting: PlottingConfig
 
@@ -142,6 +149,10 @@ def load_config(file_path: str) -> Config:
             anechoic=raw_config['generate_cochleagrams']['anechoic'],
             train_test_split=raw_config['generate_cochleagrams']['train_test_split'],
             generation_base_probability= raw_config['generate_cochleagrams']['generation_base_probability']
+        ),
+        freeze_training=FreezeTrainingConfig(
+            labels=raw_config['freeze_training']['labels'],
+            models_to_use=raw_config['freeze_training']['models_to_use']
         ),
         run_models=RunModelsConfig(
             labels=raw_config['run_models']['labels'],
