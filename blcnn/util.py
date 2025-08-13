@@ -82,6 +82,7 @@ class FreezeTrainingConfig:
 
 @dataclass
 class RunModelsConfig:
+    folder: str
     labels: List[str]
     models_to_use: List[int]
 
@@ -155,6 +156,7 @@ def load_config(file_path: str) -> Config:
             models_to_use=raw_config['freeze_training']['models_to_use']
         ),
         run_models=RunModelsConfig(
+            folder=raw_config['run_models']['folder'],
             labels=raw_config['run_models']['labels'],
             models_to_use=raw_config['run_models']['models_to_use']
         ),

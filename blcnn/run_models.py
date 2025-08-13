@@ -38,8 +38,34 @@ def main() -> None:
     eval_config = load_config('blcnn/config.yml').run_models
     logger.info(f'Loaded config: {eval_config}')
 
-    for label in eval_config.labels:
-        test_multiple_models(label, eval_config)
+    test_models_folder(eval_config)
+    # for label in eval_config.labels:
+    #     test_multiple_models(label, eval_config)
+
+
+def test_models_folder(run_models_config: RunModelsConfig) -> None:
+    """
+    Run the testing for all (ngram) models in the given folder.
+    For now, only uses the first model in the config, but can be extended to use all models.
+    """
+    start_time = time.time()
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
+
+    path_to_models = Path(f'models/{run_models_config.folder}')
+    path_to_cochleagrams = Path(f'data/cochleagrams/{run_models_config.labels[0]}')
+
+    dest = get_unique_folder_name(f'data/output/{run_models_config.folder}/')
+    Path(dest).mkdir(parents=True, exist_ok=False)
+
+    for model_path in path_to_models.glob('*.keras'):
+        logger.info(f'Testing model: {model_path}')
+        test_single_model(model_path, path_to_cochleagrams, dest)
+
+    elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
+    summary = summarize_testing(run_models_config, path_to_cochleagrams, timestamp, elapsed_time, dest)
+    logger.info(summary)
+    with open(dest / f'_summary_{timestamp}.txt', 'w') as f:
+        f.write(summary)
 
 
 def test_multiple_models(label: str, run_models_config: RunModelsConfig) -> None:
@@ -77,21 +103,21 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
     total_samples = None
     file_name = glob.glob((path_to_cochleagrams / '_summary_*.txt').as_posix())[0]
     for line in open(file_name, 'r'):
-        if 'Number of cochleagrams generated:' in line:
+        if 'Test dataset size (nr of cochleagrams):' in line:
             total_samples = int(line.split(': ')[1].strip())
             break
     if total_samples:
         nr_examples = total_samples
     else:  # Legacy for older data that doesn't have the summary file
-        nr_examples = sum(1 for _ in tqdm(tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP"), unit='examples', desc='Counting examples'))
+        nr_examples = sum(1 for _ in tqdm(tf.data.TFRecordDataset(path_to_cochleagrams / 'train_cochleagrams.tfrecord', compression_type="GZIP"), unit='examples', desc='Counting examples'))
 
 
-    # nr_examples = tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP").reduce(np.int64(0), lambda x, _: x + 1)
+    # nr_examples = tf.data.TFRecordDataset(path_to_cochleagrams / 'train_cochleagrams.tfrecord', compression_type="GZIP").reduce(np.int64(0), lambda x, _: x + 1)
     logger.info(f'Number of examples in dataset: {nr_examples}')
 
     # TODO: Better performance by batching Example protos and using parse_example; see if useful
     dataset = (
-        tf.data.TFRecordDataset(path_to_cochleagrams / 'cochleagrams.tfrecord', compression_type="GZIP")
+        tf.data.TFRecordDataset(path_to_cochleagrams / 'train_cochleagrams.tfrecord', compression_type="GZIP")
         .map(lambda serialized_example: single_example_parser(serialized_example))
         # .shuffle(64)
         .batch(16, drop_remainder=True)
