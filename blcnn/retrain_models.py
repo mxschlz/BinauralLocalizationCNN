@@ -325,6 +325,15 @@ def retrain(path_to_cochleagrams: Path, path_to_model: Path, layers_to_train: Li
         .prefetch(1)
     )
 
+    test_dataset = (
+        tf.data.TFRecordDataset(path_to_cochleagrams / 'test_cochleagrams.tfrecord', compression_type="GZIP")
+        .map(lambda serialized_example: single_example_parser(serialized_example))
+        .shuffle(64)
+        .batch(16, drop_remainder=True)
+        .repeat()
+        .prefetch(1)
+    )
+
     for layer in model.layers:  # Freeze all layers
         layer.trainable = False
 
@@ -343,7 +352,8 @@ def retrain(path_to_cochleagrams: Path, path_to_model: Path, layers_to_train: Li
                                                          write_steps_per_second=True,
                                                          update_freq='batch')
 
-    model.fit(train_dataset, epochs=10, callbacks=[tensorboard_callback], verbose=1, steps_per_epoch=train_dataset_length // 16)
+    model.fit(train_dataset, epochs=10, callbacks=[tensorboard_callback], verbose=1, steps_per_epoch=train_dataset_length // 16,
+              validation_data=test_dataset)
     # model.fit(train_dataset, epochs=1, callbacks=[tensorboard_callback], verbose=1, steps_per_epoch=1)
 
     model.save(dest_base_path / Path('model.keras'))
