@@ -16,6 +16,7 @@ from time import strftime
 
 import coloredlogs
 import numpy as np
+import scipy
 import scipy as sp
 import slab
 from slab import Filter
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
+rms_for_debugging = []  # To collect RMS values of spatialized sounds for debugging
 
 def main():
     generate_and_persist_cochleagrams_for_multiple_HRTFs()
@@ -99,6 +101,10 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
     train_samples = 0
     test_samples = 0
 
+    global rms_for_debugging
+
+    rms_for_debugging = []
+
     try:
         ##### Parallel #####
         # nr_workers = multiprocessing.cpu_count()
@@ -114,7 +120,6 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
         #                                        desc='Raw sounds transformed', total=len(stim_paths), position=0):
         #         training_samples.extend(samples_from_one_sound)
         #         bar.update(len(samples_from_one_sound))
-
         ##### Sequential #####
         # global inner_bar
         # inner_bar = tqdm(desc='Generated training samples', position=1, unit='samples', leave=False)
@@ -149,6 +154,8 @@ def generate_cochleagrams(config: Config, stim_path: Path, hrtf_label: str):
         train_writer.close()
         test_writer.close()
 
+        logger.info(f'RMS mean / stdv of spatialized sounds before normalization: {np.mean(rms_for_debugging)} / {np.std(rms_for_debugging)}')
+
         elapsed_time = str(datetime.timedelta(seconds=time.time() - start_time))
         summary = summarize_cochleagram_generation_info(cochleagram_config, hrtf_label, timestamp, elapsed_time, dest,
                                                         train_samples, test_samples)
@@ -176,7 +183,7 @@ def summarize_cochleagram_generation_info(cochleagram_config: CochleagramConfig,
               f'Number of BRIRs found: {len(list(path_to_brirs.glob("brir_*")))}\n' \
               f'Number of Stimuli found (only if a single folder is specified): {len(list(glob.glob(f"{cochleagram_config.stim_paths}/*.wav")))}\n' \
               f'Number of Backgrounds found: {len(list(glob.glob(f"{cochleagram_config.bkgd_path}/*.wav")))}\n' \
-              f'Train dataset size (nr of cochleagrams): {train_samples}\n\n' \
+              f'Train dataset size (nr of cochleagrams): {train_samples}\n' \
               f'Test dataset size (nr of cochleagrams): {test_samples}\n\n' \
               f'Config:\n{pprint.pformat(cochleagram_config)}\n\n' \
               f'Based on the following BRIR generation:\n' \
@@ -224,7 +231,8 @@ def generate_training_samples_from_stim_path(config: Config,
     # for spatialized_sound, training_coordinates in tqdm(stim_generator, desc= f'Process {worker_nr}',position=worker_nr, leave=False):
     for spatialized_sound, training_coordinates in tqdm(stim_generator, desc='Generated training samples', position=1,
                                                         unit='samples', leave=False):
-        normalized_sound = spatialized_sound * (0.1 / np.max(np.abs(spatialized_sound.data)))
+        # normalized_sound = spatialized_sound * (0.1 / np.max(np.abs(spatialized_sound.data)))  # Normalize to 0.1 peak
+        normalized_sound = spatialized_sound * (0.1 / np.sqrt(np.mean(spatialized_sound.data**2)))  # Normalize to 0.1 RMS
         if no_bkgd:
             training_samples.append((transform_stim_to_cochleagram(normalized_sound), training_coordinates))
         else:
@@ -295,12 +303,15 @@ def write_tfrecord(cochleagram, training_coords, stim_file_name: str, writer):
 
     data = {
         'train/image': tf.train.Feature(
-            bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),
+            bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),  #TF2.14
+        # 'image': tf.train.Feature(
+        #     bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(cochleagram.tobytes())])),  #TF2.16
         # 'train/image_height': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[0]])),
         # 'train/image_width': tf.train.Feature(int64_list=tf.train.Int64List(value=[cochleagram.shape[1]])),
         # 'train/azim': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.azim])),
         # 'train/elev': tf.train.Feature(int64_list=tf.train.Int64List(value=[training_coords.source_position.elev])),
-        'train/target': tf.train.Feature(int64_list=tf.train.Int64List(value=[target])),
+        'train/target': tf.train.Feature(int64_list=tf.train.Int64List(value=[target])),  #TF2.14
+        # 'target': tf.train.Feature(int64_list=tf.train.Int64List(value=[target])),  #TF2.16
         # 'train/name': tf.train.Feature(bytes_list=tf.train.BytesList(value=[stim_file_name.encode('utf-8')]))
     }
 
@@ -310,31 +321,80 @@ def write_tfrecord(cochleagram, training_coords, stim_file_name: str, writer):
     writer.write(example.SerializeToString())
 
 
-def augment_raw_sound(sound: slab.Sound, lowest_center_freq=100, nr_octaves=8) -> List[slab.Sound]:
+# def augment_raw_sound(sound: slab.Sound, lowest_center_freq=100, nr_octaves=8) -> List[slab.Sound]:
+#     """
+#     Given a generator of slab.Sound objects, increases the number of sounds by applying bandpass filters.
+#     TODO: Check if it's a 2nd order Butterworth filter
+#
+#     (- "All sounds were sampled at 44.1 kHz.")
+#     (- 455 sounds, 385 for training, 70 for validation and testing)
+#     - Augmented by applying bandpass filters: two-octave wide, second-order Butterworth filters w/ center
+#     frequencies spaced in one-octave steps from 100Hz. (Up to?)
+#     -> Yielded 2492 =~ 455 * 5.477 sounds; doesn't make sense, again...
+#
+#     Args:
+#         sound: slab.Sound object to augment
+#
+#     Returns:
+#         List of slab.Sound objects
+#     """
+#     augmented_sounds = []
+#     for octave_index in range(nr_octaves):
+#         center_freq = lowest_center_freq * 2 ** octave_index
+#         low_freq = center_freq / 2
+#         high_freq = min(center_freq * 2, (sound.samplerate / 2) - 1)  # Bit hacky with the -1
+#         # print(f'Center Frequency: {center_freq} Hz, Low Frequency: {low_freq} Hz, High Frequency: {high_freq} Hz')
+#         augmented_sounds.append(sound.filter(frequency=(low_freq, high_freq), kind='bp'))
+#     logger.info(f'Augmented sound into {len(augmented_sounds)} bandpassed sounds.')
+#     return augmented_sounds
+
+
+
+def augment_raw_sound(
+    sound: slab.Sound,
+    lowest_center_freq=100,
+    nr_octaves=8
+) -> List[slab.Sound]:
     """
-    Given a generator of slab.Sound objects, increases the number of sounds by applying bandpass filters.
-    TODO: Check if it's a 2nd order Butterworth filter
+    Augment a slab.Sound by applying true 2nd-order Butterworth bandpass filters.
 
-    (- "All sounds were sampled at 44.1 kHz.")
-    (- 455 sounds, 385 for training, 70 for validation and testing)
-    - Augmented by applying bandpass filters: two-octave wide, second-order Butterworth filters w/ center
-    frequencies spaced in one-octave steps from 100Hz. (Up to?)
-    -> Yielded 2492 =~ 455 * 5.477 sounds; doesn't make sense, again...
-
-    Args:
-        sound: slab.Sound object to augment
-
-    Returns:
-        List of slab.Sound objects
+    Each bandpass is 2 octaves wide (low = center/2, high = center*2), and
+    center frequencies increase in 1-octave steps.
     """
+
     augmented_sounds = []
+    sr = sound.samplerate
+
     for octave_index in range(nr_octaves):
         center_freq = lowest_center_freq * 2 ** octave_index
-        low_freq = center_freq / 2
-        high_freq = min(center_freq * 2, (sound.samplerate / 2) - 1)  # Bit hacky with the -1
-        # print(f'Center Frequency: {center_freq} Hz, Low Frequency: {low_freq} Hz, High Frequency: {high_freq} Hz')
-        augmented_sounds.append(sound.filter(frequency=(low_freq, high_freq), kind='bp'))
+        low_freq = center_freq / 2.0
+        high_freq = min(center_freq * 2.0, (sr / 2) - 1.0)
+
+        # --- DESIGN TRUE 2nd ORDER BUTTERWORTH BANDPASS ---
+        # butter order=2 → bandpass is 2nd order (12 dB/oct slopes)
+        sos = scipy.signal.butter(
+            N=2,
+            Wn=[low_freq, high_freq],
+            btype='band',
+            fs=sr,
+            output='sos'
+        )
+
+        # --- APPLY THE FILTER ---
+        filtered_data = scipy.signal.sosfilt(sos, sound.data, axis=0)
+
+        # Wrap back into slab.Sound
+        filtered_sound = slab.Sound(data=filtered_data, samplerate=sr)
+        augmented_sounds.append(filtered_sound)
+
+        logger.debug(
+            f"Butterworth BP: center={center_freq}Hz "
+            f"range=({low_freq}-{high_freq})Hz"
+        )
+
+    logger.info(f"Augmented sound into {len(augmented_sounds)} bandpassed sounds.")
     return augmented_sounds
+
 
 
 def generate_spatialized_sound(sounds: List[slab.Sound],
@@ -360,7 +420,14 @@ def generate_spatialized_sound(sounds: List[slab.Sound],
                                                                 generation_base_probability):
             spatialized_sound = apply_brir(padded_sound, training_coordinates, brir_dict=brir_dict,
                                            path_to_brirs=path_to_brirs)
+            # Print RMS of spatialized sound for debugging
+            if spatialized_sound is not None:
+                rms = np.sqrt(np.mean(spatialized_sound.data**2))
+                rms_for_debugging.append(rms)
             # PBAR.update(1)
+            # Normalize sound to 0.1 RMS
+            # normalized_sound = spatialized_sound * (0.1 / np.sqrt(np.mean(spatialized_sound.data**2))) if spatialized_sound is not None else None
+
             if spatialized_sound is not None:
                 yield spatialized_sound, training_coordinates
 
@@ -473,20 +540,12 @@ def apply_brir(sound: slab.Sound,
 
 
 def transform_stim_to_cochleagram(stim: slab.Binaural):
-    """
-
-    Args:
-        stim:
-
-    Returns:
-
-    """
-    normalized_stim, sr = normalize_binaural_stim(stim.data, stim.samplerate)
+    normalized_stim, sr = stim.data.T, stim.samplerate
+    # logger.info(f'Stim RMS before normalization: {normalized_stim}')  # -> Should be 0.1
+    # normalized_stim, sr = normalize_binaural_stim(stim.data, stim.samplerate)  # not needed as we already normalize beforehand
+    # logger.info(f'Stim RMS before cochleagram: {np.sqrt(np.mean(normalized_stim**2))}')
     cochleagram = cochleagram_wrapper(normalized_stim)
-    # Downsample to 8kHz
-    # logger.info(type(cochleagram))
-    downsampled = downsample_hardcoded(cochleagram).numpy()
-    # logger.info(type(downsampled))
+    downsampled = compress_and_downsample(cochleagram).numpy()
 
     # -> low subband index is low frequency band; plot cochleagrams them upside down
     return downsampled
@@ -521,22 +580,71 @@ def make_downsample_filt_tensor_hardcoded():
 DS_KERNEL = make_downsample_filt_tensor_hardcoded()
 
 
-def downsample_hardcoded(signal):
-    [L_channel, R_channel] = tf.unstack(signal, axis=2)
+def compress_and_downsample(signal):
+    """
+    Downsamples a stereo signal by a factor of 6 using strided convolution,
+    followed by nonlinear amplitude compression.
+
+    Expected input shape:
+        signal: (39, 2, 48000)  -> (features, stereo, time)
+
+    Output shape:
+        (39, 2, 8000)
+
+    Processing steps:
+    1. Rearrange channels for convolution
+    2. Strided convolution for lowpass filtering + downsampling
+    3. ReLU non-linearity
+    4. Power-law compression
+    """
+
+    # Split stereo channels: each is shape (39, 48000)
+    L_channel, R_channel = tf.unstack(signal, axis=2)
+
+    # Stack channels along batch dimension for parallel convolution
+    # Shape becomes: (78, 48000)
     concat_for_downsample = tf.concat([L_channel, R_channel], axis=0)
+
+    # Add channel dimension for conv2d: (78, 48000, 1)
     reshaped_for_downsample = tf.expand_dims(concat_for_downsample, axis=2)
 
+    # Add batch dimension: (1, 78, 48000, 1)
     signal = tf.expand_dims(reshaped_for_downsample, 0)
-    downsampled_signal = tf.nn.conv2d(signal, DS_KERNEL, strides=[1, 1, 6, 1], padding='SAME',
-                                      name='conv2d_cochleagram_raw')
+
+    # Strided convolution:
+    # - Stride of 6 performs 6x downsampling along time axis
+    # - DS_KERNEL should act as an anti-alias filter
+    downsampled_signal = tf.nn.conv2d(
+        signal,
+        DS_KERNEL,
+        strides=[1, 1, 6, 1],
+        padding='SAME',
+        name='conv2d_cochleagram_raw'
+    )
+
+    # Half-wave rectification (nonlinear)
     downsampled_signal = tf.nn.relu(downsampled_signal)
 
+    # Remove batch and channel dimensions -> (78, 8000)
     downsampled_squeezed = tf.squeeze(downsampled_signal)
-    [L_channel_downsampled, R_channel_downsampled] = tf.split(downsampled_squeezed, num_or_size_splits=2, axis=0)
-    downsampled_reshaped = tf.stack([L_channel_downsampled, R_channel_downsampled], axis=2)
+
+    # Separate stereo channels back: each (39, 8000)
+    L_channel_downsampled, R_channel_downsampled = tf.split(
+        downsampled_squeezed, num_or_size_splits=2, axis=0
+    )
+
+    # Re-stack into stereo format: (39, 8000, 2)
+    downsampled_reshaped = tf.stack(
+        [L_channel_downsampled, R_channel_downsampled],
+        axis=2
+    )
+
+    # Power-law amplitude compression (mimics cochlear loudness perception)
+    # NOTE: This increases RMS for signals with small magnitudes (<1).
     downsampled_signal = tf.pow(downsampled_reshaped, 0.3)
 
     return downsampled_signal
+
 
 
 """
