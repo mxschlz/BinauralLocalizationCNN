@@ -8,7 +8,7 @@ from net_builder import single_example_parser
 from pycochleagram.cochleagram import invert_cochleagram
 
 # dataset_name = 'cochleagrams_2024-12-17_19-14-28/cochs_hrtf_slab_default_kemar.tfrecord'
-dataset_name = 'train0.tfrecord'
+dataset_name = 'train0.tfrecords'
 print(os.getcwd())
 i=0
 for coch in tf.data.TFRecordDataset(f'../data/processed/{dataset_name}', compression_type="GZIP").map(lambda serialized_example: single_example_parser(serialized_example)):
