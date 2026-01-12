@@ -1,3 +1,4 @@
+import glob
 from pathlib import Path
 import logging
 from pathlib import Path
@@ -10,7 +11,7 @@ import tensorflow as tf
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
-from blcnn.generate_cochleagrams import downsample_hardcoded
+from blcnn.generate_cochleagrams import compress_and_downsample
 from blcnn.util import CNNpos_to_loc, loc_to_CNNpos, get_unique_folder_name
 from persistent_cache import persistent_cache
 
@@ -30,8 +31,77 @@ coloredlogs.install(level='DEBUG', logger=logger, fmt='%(asctime)s - %(name)s - 
 
 
 def main() -> None:
-    # inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/train0_transformed/cochleagrams.tfrecord"))
-    transform_francl_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/testset_record_subset"))
+    # inspect_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/naturalsounds165_hrtf_nh2/train_cochleagrams.tfrecord"))
+    # transform_francl_data(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/testset_record_subset"))
+    # split_tfrecord(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/naturalsounds165_hrtf_nh2/train_cochleagrams.tfrecord"), split_ratio=0.8)
+    # compare_datasets(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/naturalsounds165_hrtf_nh2/train_cochleagrams.tfrecord"),
+    #                  Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/francl_data_transformed_concatenated/test_cochleagrams.tfrecord"),
+    #                  plot=True)
+    compare_datasets(Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/naturalsounds165_hrtf_nh2_15/train_cochleagrams.tfrecord"),
+                     Path("/Users/david/Repositories/ma/BinauralLocalizationCNN/data/cochleagrams/francl_data_transformed_concatenated/test_cochleagrams.tfrecord"),
+                     plot=True)
+
+def compare_datasets(path1: Path, path2: Path, plot: bool = True):
+    # Load datasets
+    dataset1 = tf.data.TFRecordDataset(path1, compression_type="GZIP")
+    dataset2 = tf.data.TFRecordDataset(path2, compression_type="GZIP")
+
+    # Extract 5 examples from each dataset
+    examples1 = [record.numpy() for record in dataset1.shuffle(100).take(5)]
+    examples2 = [record.numpy() for record in dataset2.shuffle(100).take(5)]
+
+    # Parse examples
+    parsed_examples1 = [tf.train.Example.FromString(raw) for raw in examples1]
+    parsed_examples2 = [tf.train.Example.FromString(raw) for raw in examples2]
+
+    # Extract and normalize cochleagrams
+    def extract_and_normalize(parsed_examples):
+        cochleagrams = []
+        for example in parsed_examples:
+            image_bytes = example.features.feature['train/image'].bytes_list.value[0]
+            example_numpy_array = np.frombuffer(image_bytes, dtype=np.float32)
+            normalized_array = example_numpy_array * (255.0 / example_numpy_array.max())
+            reshaped = normalized_array.reshape(39, 8000, 2)
+            cochleagrams.append(reshaped)
+        return cochleagrams
+
+    cochleagrams1 = extract_and_normalize(parsed_examples1)
+    cochleagrams2 = extract_and_normalize(parsed_examples2)
+
+    if plot:
+        # Plot cochleagrams
+        fig, axs = plt.subplots(5, 2, figsize=(30, 30))  # 1000px x 975px
+        mid_start = 3500  # Start index for middle 1000 samples
+        mid_end = mid_start + 1000  # End index for middle 1000 samples
+
+        for i in range(5):
+            axs[i, 0].imshow(cochleagrams1[i][:, mid_start:mid_end, 1], aspect='auto', cmap='afmhot', origin='lower')
+            axs[i, 0].set_title(f'Dataset 1 - Cochleagram {i+1}')
+            axs[i, 1].imshow(cochleagrams2[i][:, mid_start:mid_end, 1], aspect='auto', cmap='afmhot', origin='lower')
+            axs[i, 1].set_title(f'Dataset 2 - Cochleagram {i+1}')
+        plt.tight_layout()
+        plt.show()
+
+    # Print min max avg and rms of the 5 cochleagrams from each dataset
+    def compute_stats(cochleagrams):
+        stats = []
+        for coch in cochleagrams:
+            min_val = np.min(coch)
+            max_val = np.max(coch)
+            avg_val = np.mean(coch)
+            rms_val = np.sqrt(np.mean(coch**2))
+            stats.append((min_val, max_val, avg_val, rms_val))
+        return stats
+    stats1 = compute_stats(cochleagrams1)
+    stats2 = compute_stats(cochleagrams2)
+
+    for i in range(5):
+        print(f'Dataset 1 - Cochleagram {i+1}: Min: {stats1[i][0]:.3f}, Max: {stats1[i][1]:.3f}, Avg: {stats1[i][2]:.3f}, RMS: {stats1[i][3]:.3f}')
+    print('---')
+    for i in range(5):
+        print(f'Dataset 2 - Cochleagram {i+1}: Min: {stats2[i][0]:.3f}, Max: {stats2[i][1]:.3f}, Avg: {stats2[i][2]:.3f}, RMS: {stats2[i][3]:.3f}')
+
+
 
 def inspect_data(path: Path):
     dataset = tf.data.TFRecordDataset(path, compression_type="GZIP")
@@ -140,7 +210,7 @@ def transform_francl_data(path: Path):
     dest = Path('data/cochleagrams/francl_data_transformed_concatenated')
     dest.mkdir(parents=True, exist_ok=True)
     options = tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP)
-    writer = tf.io.TFRecordWriter((dest / 'cochleagrams.tfrecord').as_posix(), options=options)
+    writer = tf.io.TFRecordWriter((dest / 'train_cochleagrams.tfrecord').as_posix(), options=options)
 
     feature_description = {
         'train/image': tf.io.FixedLenFeature([], tf.string),
@@ -160,7 +230,7 @@ def transform_francl_data(path: Path):
 
                 target = loc_to_CNNpos(example['train/azim'], example['train/elev'])
                 cochleagram = example['train/image']
-                downsampled_cochleagram = downsample_hardcoded(cochleagram).numpy()
+                downsampled_cochleagram = compress_and_downsample(cochleagram).numpy()
 
                 data = {
                     'train/image': tf.train.Feature(
@@ -169,6 +239,51 @@ def transform_francl_data(path: Path):
                 }
                 example = tf.train.Example(features=tf.train.Features(feature=data))
                 writer.write(example.SerializeToString())
+
+
+def split_tfrecord(path: Path, split_ratio: float = 0.8) -> (Path, Path):
+    """
+    Splits a TFRecord file into two parts based on the given split ratio.
+    Additionally, it shuffles the examples before splitting.
+    It does so by not reading the entire dataset into memory, but rather iterating through it.
+    Returns the paths to the two new TFRecord files.
+    """
+    assert 0 < split_ratio < 1, 'Split ratio must be between 0 and 1'
+    dataset = tf.data.TFRecordDataset(path, compression_type="GZIP")
+
+    total_examples = None
+    file_name = glob.glob((path.parent / '_summary_*.txt').as_posix())[0]
+    for line in open(file_name, 'r'):
+        if 'Number of cochleagrams generated:' in line:
+            total_examples = int(line.split(': ')[1].strip())
+            break
+
+    nr_train_examples = int(total_examples * split_ratio)
+
+    # Create two new TFRecord files
+    train_path = path.parent / (path.stem + '_train.tfrecord')
+    test_path = path.parent / (path.stem + '_test.tfrecord')
+
+    train_writer = tf.io.TFRecordWriter(train_path.as_posix(), options=tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP))
+    test_writer = tf.io.TFRecordWriter(test_path.as_posix(), options=tf.io.TFRecordOptions(tf.compat.v1.python_io.TFRecordCompressionType.GZIP))
+
+    # Shuffle the dataset and split it
+    train_examples = 0
+    test_examples = 0
+    for raw_record in tqdm(dataset, desc='Splitting TFRecord', total=total_examples):
+        r = np.random.rand()
+        if r < split_ratio and train_examples < nr_train_examples:
+            train_writer.write(raw_record.numpy())
+            train_examples += 1
+        else:
+            test_writer.write(raw_record.numpy())
+            test_examples += 1
+
+    train_writer.close()
+    test_writer.close()
+
+
+
 
 
 def print_pprint(*args, **kwargs):
