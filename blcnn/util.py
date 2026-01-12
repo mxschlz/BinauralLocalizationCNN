@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Any
 
 import yaml
+import slab
 
 '''
 Structure (old):
@@ -78,6 +79,7 @@ class CochleagramConfig:
 class FreezeTrainingConfig:
     labels: List[str]
     models_to_use: List[int]
+    ngrams: List[int]
 
 
 @dataclass
@@ -153,7 +155,8 @@ def load_config(file_path: str) -> Config:
         ),
         freeze_training=FreezeTrainingConfig(
             labels=raw_config['freeze_training']['labels'],
-            models_to_use=raw_config['freeze_training']['models_to_use']
+            models_to_use=raw_config['freeze_training']['models_to_use'],
+            ngrams=raw_config['freeze_training']['ngrams']
         ),
         run_models=RunModelsConfig(
             folder=raw_config['run_models']['folder'],
