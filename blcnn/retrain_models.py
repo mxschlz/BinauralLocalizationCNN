@@ -70,7 +70,8 @@ def main() -> None:
     # persist_and_reload_model()
     # test_if_retraining_works()
     # test_logging()
-    execute_retrain()
+    # execute_retrain()
+    experiment_alpha()
 
 
 def persist_and_reload_model():
@@ -328,9 +329,7 @@ def retrain(path_to_cochleagrams: Path, path_to_model: Path, layers_to_train: Li
     test_dataset = (
         tf.data.TFRecordDataset(path_to_cochleagrams / 'test_cochleagrams.tfrecord', compression_type="GZIP")
         .map(lambda serialized_example: single_example_parser(serialized_example))
-        .shuffle(64)
         .batch(16, drop_remainder=True)
-        .repeat()
         .prefetch(1)
     )
 
