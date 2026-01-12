@@ -117,7 +117,7 @@ def test_single_model(model_path: Path = None, path_to_cochleagrams: Path = None
 
     # TODO: Better performance by batching Example protos and using parse_example; see if useful
     dataset = (
-        tf.data.TFRecordDataset(path_to_cochleagrams / 'train_cochleagrams.tfrecord', compression_type="GZIP")
+        tf.data.TFRecordDataset(path_to_cochleagrams / 'test_cochleagrams.tfrecord', compression_type="GZIP")
         .map(lambda serialized_example: single_example_parser(serialized_example))
         # .shuffle(64)
         .batch(16, drop_remainder=True)
