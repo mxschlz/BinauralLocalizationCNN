@@ -95,7 +95,7 @@ def persist_and_reload_model():
     # -> This works without error or warning
 
 
-def test_if_retraining_works():
+def check_if_retraining_works():
     """
     - Now test funtionality
         - Test model w/ nh2 test set
@@ -128,11 +128,11 @@ def test_if_retraining_works():
     model.compile(optimizer=keras.optimizers.legacy.Adam(1e-3), loss='sparse_categorical_crossentropy',
                   metrics=['sparse_categorical_accuracy'])
 
-    test_model_online(model, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [0], Path('data/output/naturalsounds165_hrtf_nh2_test_before_retrain'), tf)
+    infer_model_online(model, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [0], Path('data/output/naturalsounds165_hrtf_nh2_test_before_retrain'), tf)
 
     model.fit(train_dataset, epochs=10, verbose=1, steps_per_epoch=13288 // 16)
 
-    test_model_online(model, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [1], Path('data/output/naturalsounds165_hrtf_nh2_test_retrain'), tf)
+    infer_model_online(model, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [1], Path('data/output/naturalsounds165_hrtf_nh2_test_retrain'), tf)
 
 
     model.save('models/keras_momentum_9e-1/net1_test_retrain.keras')
@@ -142,11 +142,11 @@ def test_if_retraining_works():
     model_reloaded: keras.Model = keras.models.load_model('models/keras_momentum_9e-1/net1_test_retrain.keras', compile=False)
     model_reloaded.compile(optimizer=keras.optimizers.legacy.Adam(1e-3), loss='sparse_categorical_crossentropy',
                             metrics=['sparse_categorical_accuracy'])
-    test_model_online(model_reloaded, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [2], Path('data/output/naturalsounds165_hrtf_nh2_test_retrain_reloaded'), tf)
+    infer_model_online(model_reloaded, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [2], Path('data/output/naturalsounds165_hrtf_nh2_test_retrain_reloaded'), tf)
     # -> Works!!
 
 
-def test_logging():
+def check_logging():
     import tensorflow as tf
     import keras
     from keras import backend as K
@@ -309,8 +309,8 @@ def retrain(path_to_cochleagrams: Path, path_to_model: Path, layers_to_train: Li
     import tensorflow as tf
     import keras
     from keras import backend as K
-
     K.clear_session()
+
     model: keras.Model = keras.models.load_model(path_to_model, compile=False)
     train_dataset = (
         tf.data.TFRecordDataset(path_to_cochleagrams / 'train_cochleagrams.tfrecord', compression_type="GZIP")
@@ -344,10 +344,10 @@ def retrain(path_to_cochleagrams: Path, path_to_model: Path, layers_to_train: Li
 
     model.save(dest_base_path / Path('model.keras'))
 
-    test_model_online(model, path_to_cochleagrams, layers_to_train, dest_base_path, tf)
+    infer_model_online(model, path_to_cochleagrams, layers_to_train, dest_base_path, tf)
 
 
-def test_model_online(model, path_to_cochleagrams: Path, layers_to_train: List[int], dest: Path, tf) -> None:
+def infer_model_online(model, path_to_cochleagrams: Path, layers_to_train: List[int], dest: Path, tf) -> None:
     import numpy as np
     from tqdm import tqdm
     # ngram_repr = '_'.join(str(layer_id) for layer_id in layers_to_train)
@@ -433,6 +433,34 @@ def compute_layer_ngrams_indices(path_to_indices: Path, net_id: int, ngram_lengt
     # ngram_indices.insert(0, [dense_index])
 
     return ngram_indices
+
+
+def experiment_alpha():
+    """
+    Retrain w/ multiple different HRTFs and do testing with those and KEMAR before and after retraining
+    For now: Use nh2 model that w/ Dense layer retrained.
+    """
+    import tensorflow as tf
+    import keras
+    from keras import backend as K
+    K.clear_session()
+
+    dest = get_unique_folder_name('data/output_experiment_alpha')
+
+    # Load model before retraining and after retraining
+    model_before: keras.Model = keras.models.load_model('models/keras_momentum_9e-1/net1.keras', compile=False)
+    model_after: keras.Model = keras.models.load_model('data/ft/naturalsounds165_hrtf_nh2_20/ft_34/model.keras', compile=False)
+
+    infer_model_online(model_before, Path('data/cochleagrams/naturalsounds165_slab_kemar'), [34], dest / Path('kemar_before_retrain'), tf)
+    infer_model_online(model_after, Path('data/cochleagrams/naturalsounds165_slab_kemar'), [34], dest / Path('kemar_after_retrain'), tf)
+    infer_model_online(model_before, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [34], dest / Path('nh2_before_retrain'), tf)
+    infer_model_online(model_after, Path('data/cochleagrams/naturalsounds165_hrtf_nh2_20'), [34], dest / Path('nh2_after_retrain'), tf)
+
+
+
+
+
+
 
 
 if __name__ == '__main__':
