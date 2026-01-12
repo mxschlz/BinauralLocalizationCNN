@@ -430,7 +430,7 @@ def compute_layer_ngrams_indices(path_to_indices: Path, net_id: int, ngram_lengt
         ngram_indices.append(ngram_indices[i] + [dense_index])
 
     # Add dense layer only as well
-    # ngram_indices.insert(0, [dense_index])
+    ngram_indices.insert(0, [dense_index])
 
     return ngram_indices
 
