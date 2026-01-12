@@ -20,6 +20,7 @@ dependencies:
     - pytest
     - h5netcdf
     - pyyaml
+    - netcdf4
     - pip:
         - visualkeras
         - slab
