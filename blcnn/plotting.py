@@ -1,5 +1,6 @@
 import csv
 import glob
+import sys
 from pathlib import Path
 
 import keras
@@ -9,11 +10,14 @@ import visualkeras
 from PIL import ImageFont
 from matplotlib import pyplot as plt
 from matplotlib.table import Table
+from matplotlib import colormaps
 
 from blcnn.util import load_config
 
 
 def main() -> None:
+    plot_elev_gain_ngrams(Path('data/ft/naturalsounds165_hrtf_nh2_20'))
+    sys.exit()
     # Go through labels in config and create one plot for each label and net
 
     plotting_config = load_config('blcnn/config.yml').plotting
@@ -28,7 +32,7 @@ def main() -> None:
         for result_file in glob.glob(str(data_folder / '*.csv')):
             print(f'Generating plot for file: {result_file}')
             data = read_single_cnn_result(Path(result_file), plotting_config.data_selection, plotting_config.folded)
-            title = f'Localization Accuracy: {label} - {Path(result_file).stem} - {plotting_config.data_selection} - folded: {plotting_config.folded}'
+            title = f'Localization Accuracy\n{label} - {Path(result_file).stem} - {plotting_config.data_selection} data\nfolded: {plotting_config.folded}'
             plt = plot_localization_accuracy(data,
                                              nr_elevation_bins=plotting_config.nr_elevation_bins,
                                              nr_azimuth_bins=plotting_config.nr_azimuth_bins,
@@ -477,6 +481,139 @@ def plot_model_diagram(model: keras.Sequential):
     img = visualkeras.layered_view(model, legend=True, text_callable=_text_callable,
                                    font=ImageFont.load_default(size=36), scale_xy=0.5, min_xy=10, scale_z=0.5)
     plt.imshow(np.asarray(img))
+    plt.show()
+
+
+def plot_elev_gain_ngrams(folder: Path):
+    # Folder has many files of form "i_j_k_..._z.csv"
+    # Extract all layer IDs into a list called layer_ids
+    layer_ids = set()
+    for subfolder in folder.iterdir():
+        if subfolder.is_dir():  # Ensure it's a directory
+            # Get all layer IDs from the subfolder name
+            layer_ids.update([int(x) for x in subfolder.name.split('_') if x.isdigit()])
+    layer_ids = sorted(layer_ids)
+
+    # Pop last layer and put it into dense_id
+    dense_id = layer_ids.pop()
+    print(f'Layer IDs found in folder: {layer_ids}')
+    print(f'Dense layer ID: {dense_id}')
+
+    # Make empty dict (later: with keys being tuples of the form (first_layer_id, last_layer_id))
+    elev_gains = dict()
+    elev_gains_with_dense = dict()
+    elev_gain_only_dense = None
+
+    acc_dict = dict()
+    acc_dict_with_dense = dict()
+    acc_only_dense = None
+
+    # Go through files
+    for subfolder in folder.iterdir():
+        if not subfolder.is_dir():
+            continue
+        file = subfolder / 'predictions.csv'
+        # Extract first and last layer ID (excluding dense_id) from all the names into current_ngram
+        retrained_layers = [int(x) for x in subfolder.name.split('_') if x.isdigit()]
+
+        first_layer_id = retrained_layers[0]
+        if first_layer_id == dense_id:
+            last_layer_id = retrained_layers[0]  # -> maybe not necessary, but makes it clearer
+        elif dense_id in retrained_layers:
+            last_layer_id = retrained_layers[-2]
+        else:
+            last_layer_id = retrained_layers[-1]
+
+        current_ngram = (first_layer_id, last_layer_id)
+        print(file)
+        print(f'Current ngram: {current_ngram}\n')
+
+        # Read data from file, calculate elevation gain
+        data = read_single_cnn_result(file, 'all', False)
+        targets = data[:, :2]
+        responses = data[:, 2:]
+        # Calculate elevation gain
+        elevation_gain, n = scipy.stats.linregress(targets[:, 1], responses[:, 1])[:2]
+        # Calculate sparse categorical accuracy
+        """def loc_to_CNNpos(azim, elev):
+            azim = azim % 360  # wrap around
+            div = elev // 10
+            mod = azim // 5
+            return div * 72 + mod"""
+        target_ids = np.array([int((elev // 10) * 72 + ((azim % 360) // 5)) for azim, elev in targets])
+        response_ids = np.array([int((elev_pred // 10) * 72 + ((azim_pred % 360) // 5)) for azim_pred, elev_pred in responses])
+
+        acc = np.mean(np.equal(target_ids, response_ids))
+
+
+
+        # Write elev gain into dict with current key
+        # if first_layer_id == dense_id and len(retrained_layers) == 1:
+        #     elev_gain_only_dense = elevation_gain
+        if (dense_id in retrained_layers) or (first_layer_id == dense_id):
+            elev_gains_with_dense[current_ngram] = elevation_gain
+            acc_dict_with_dense[current_ngram] = acc
+        else:
+            elev_gains[current_ngram] = elevation_gain
+            acc_dict[current_ngram] = acc
+
+    print(f'Elevation gains: {elev_gains}')
+    print(f'Elevation gains with dense: {elev_gains_with_dense}')
+    print(f'Accuracy: {acc_dict}')
+    print(f'Accuracy with dense: {acc_dict_with_dense}')
+
+    triangle_table(elev_gains, layer_ids, dense_id, 'Elevation gains for conv layer ngrams without dense layer')
+    triangle_table(elev_gains_with_dense, layer_ids, dense_id, 'Elevation gains for conv layer ngrams with dense layer')
+    triangle_table(acc_dict, layer_ids, dense_id, 'Sparse categorical accuracy for conv layer ngrams without dense layer', color='Blues')
+    triangle_table(acc_dict_with_dense, layer_ids, dense_id, 'Sparse categorical accuracy for conv layer ngrams with dense layer', color='Blues')
+
+def triangle_table(ngram_values, layer_ids, dense_id, title, color='Greens'):
+    # Make two tables, one for elev_gains, one for elev_gains_with_dense
+    # Each has the layer IDs on both axes and one diagonal half with the values
+    # Make a table with the elev_gains dict
+    # Transform dict into 2D array, using the index of the layers in layer_ids as the index for the array
+    # Diagonally, half of the table should be filled with the values from elev_gains'
+    # The other half should be empty
+    # Code here:
+    local_layer_ids = layer_ids.copy()
+    if (dense_id, dense_id) in ngram_values.keys():
+        local_layer_ids.append(dense_id)
+    print(local_layer_ids)
+
+
+    cell_text = np.ones((len(local_layer_ids), len(local_layer_ids)))
+    # invert to -1
+    cell_text = cell_text * -1
+    for (first_layer_id, last_layer_id) in ngram_values.keys():
+        # Get the elevation gain for the current ngram
+        value = ngram_values[(first_layer_id, last_layer_id)]
+        # Set the cell value
+        cell_text[local_layer_ids.index(first_layer_id), local_layer_ids.index(last_layer_id)] = f'{value:.2f}'
+        # # Set the cell color
+        # cell_text[layer_ids.index(first_layer_id) + 1, layer_ids.index(last_layer_id)] = np.color
+        # # Set the cell border color
+        # cell_text[layer_ids.index(first_layer_id) + 1, layer_ids.index(last_layer_id)] = 'black'
+        # # Set the cell text color
+        # cell_text[layer_ids.index(first_layer_id) + 1, layer_ids.index(last_layer_id)] = 'black'
+    cell_colours = colormaps[color](cell_text)
+    fig, ax = plt.subplots()
+    ax.axis('tight')
+    ax.axis('off')
+    table = ax.table(cellText=cell_text, colLabels=local_layer_ids, rowLabels=local_layer_ids,
+                     loc='center', cellColours=cell_colours)
+    # Go through table and delete cells with value 0.0
+    for i in range(len(local_layer_ids)):
+        for j in range(len(local_layer_ids)):
+            if cell_text[i, j] == -1.0:
+                table[(i + 1, j)].set_visible(False)
+    table.auto_set_font_size(False)
+    table.set_fontsize(8)
+    table.scale(1, 1.5)
+    ax.set_title(title)
+    # TODO: Finish table visualization -> add version w/ dense layer, add labels
+    # TODO: Regenerate / change NH2 data and try this with actual training
+    # TODO: Find better dataset
+    # Show the table
     plt.show()
 
 
