@@ -296,7 +296,11 @@ def execute_retrain():
                 current_dest = dest / Path(f'ft_{"_".join(str(l) for l in layers_to_train)}')
                 current_dest.mkdir(parents=True, exist_ok=True)
                 logger.info(f'Saving to: {current_dest}')
-                retrain(path_to_cochleagrams, path_to_model, layers_to_train, train_dataset_length, current_dest)
+                try:
+                    retrain(path_to_cochleagrams, path_to_model, layers_to_train, train_dataset_length, current_dest)
+                except Exception as e:
+                    logger.error(f'Error during retraining for HRTF: {hrtf_label}, Model ID: {model_id}, Layers to train: {layers_to_train}')
+                    logger.error(traceback.format_exc())
                 logger.info('\n\n')
 
 
